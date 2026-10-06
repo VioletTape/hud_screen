@@ -4,7 +4,7 @@ import { getConfig } from '../config.js';
 import { IProvider } from './base.js';
 
 type CalendarSource = 'corporate' | 'personal';
-type Meeting = { id: string; title: string; startAt: string; allDay: boolean; source: CalendarSource };
+type Meeting = { id: string; title: string; startAt: string; allDay: boolean; source: CalendarSource; recurring: boolean; participantCount: number };
 type CachedFeed = { url: string; refreshedAt: number; events: VEvent[] };
 
 const MAX_FEED_BYTES = 5_000_000;
@@ -17,6 +17,13 @@ function text(value: VEvent['summary'] | undefined): string {
   return value?.val || '';
 }
 
+function countParticipants(event: VEvent): number {
+  const attendees = Array.isArray(event.attendee) ? event.attendee : event.attendee ? [event.attendee] : [];
+  return attendees.filter(attendee =>
+    typeof attendee === 'string' || (attendee.params?.CUTYPE !== 'ROOM' && attendee.params?.ROLE !== 'NON-PARTICIPANT')
+  ).length;
+}
+
 function eventMeetings(event: VEvent, now: Date, source: CalendarSource): Meeting[] {
   if (event.status === 'CANCELLED' || !event.start) return [];
 
@@ -26,6 +33,8 @@ function eventMeetings(event: VEvent, now: Date, source: CalendarSource): Meetin
     startAt: start.toISOString(),
     allDay,
     source,
+    recurring: Boolean(event.rrule),
+    participantCount: countParticipants(event),
   });
 
   if (!event.rrule) {

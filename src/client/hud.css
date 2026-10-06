@@ -382,7 +382,9 @@ html, body {
   background: rgba(255, 255, 255, 0.035);
 }
 
-.meeting-item.personal { border-left-color: var(--accent-purple); }
+.meeting-item.recurring { border-left-color: var(--accent-purple); }
+.meeting-item.single { border-left-color: #fc6d26; }
+.meeting-item.large { border-left-color: var(--text-muted); }
 .meeting-title {
   font-size: 16px;
   font-weight: 700;

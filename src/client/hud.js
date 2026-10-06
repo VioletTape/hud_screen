@@ -170,7 +170,7 @@ function renderProviderCard(providerKey, data) {
       if (list) {
         list.innerHTML = meetings.length
           ? meetings.map(meeting => `
-              <div class="meeting-item ${meeting.source === 'personal' ? 'personal' : 'corporate'}" aria-label="${escapeHtml(meeting.source)} calendar: ${escapeHtml(meeting.title)}">
+              <div class="meeting-item ${meeting.source === 'personal' ? 'personal' : 'corporate'} ${meeting.participantCount > 20 ? 'large' : meeting.recurring ? 'recurring' : 'single'}" aria-label="${meeting.participantCount > 20 ? 'Large meeting; ' : ''}${meeting.recurring ? 'Recurring' : 'Single'} ${escapeHtml(meeting.source)} calendar: ${escapeHtml(meeting.title)}">
                 <div class="meeting-title">${escapeHtml(meeting.title)}</div>
                 <div class="meeting-countdown">${formatTimeUntil(meeting.startAt)}</div>
                 <div class="meeting-datetime">${formatMeetingDate(meeting)}</div>
