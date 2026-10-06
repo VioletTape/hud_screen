@@ -173,27 +173,24 @@ export class LiteLLMProvider implements IProvider {
         headers,
         signal: AbortSignal.timeout(6000),
       });
-      if (listRes.ok) {
-        const listData = await listRes.json() as any;
-        const keyTokens: string[] = Array.isArray(listData?.keys) ? listData.keys : [];
-        if (keyTokens.length > 0) {
-          const outcomes = await Promise.allSettled(
-            keyTokens.map(tok => this.fetchSingleKey(cleanUrl, tok, authBearer))
-          );
-          const results: SingleKeyInfo[] = [];
-          for (const o of outcomes) {
-            if (o.status === 'fulfilled' && o.value.ok && o.value.info) {
-              results.push(o.value.info);
-            }
-          }
-          if (results.length > 0) return results;
+      if (!listRes.ok) throw new Error(`HTTP ${listRes.status}`);
+      const listData = await listRes.json() as any;
+      if (!Array.isArray(listData?.keys)) throw new Error('Invalid key list');
+      const results: SingleKeyInfo[] = [];
+      // ponytail: four keys at a time; tune this if key discovery becomes slow.
+      for (let i = 0; i < listData.keys.length; i += 4) {
+        const outcomes = await Promise.all(listData.keys.slice(i, i + 4).map((tok: string) =>
+          this.fetchSingleKey(cleanUrl, tok, authBearer)
+        ));
+        for (const outcome of outcomes) {
+          if (!outcome.ok || !outcome.info) throw new Error(outcome.error || 'Key info unavailable');
+          results.push(outcome.info);
         }
       }
-    } catch {
-      // ignore
+      return results;
+    } catch (err: any) {
+      throw new Error(`LiteLLM key discovery failed: ${err.message || String(err)}`);
     }
-
-    return [];
   }
 
   async testConnection(customConfig?: { baseUrl: string; masterKey?: string; userId?: string; dailyBudgetLimit?: number }): Promise<{ success: boolean; message: string; details?: any }> {
@@ -228,16 +225,20 @@ export class LiteLLMProvider implements IProvider {
 
     // Step 2: If userId available and primaryKey available, discover all user keys
     if (userId && primaryKey) {
-      const userKeys = await this.fetchUserKeys(cleanUrl, userId, primaryKey);
-      for (const uk of userKeys) {
-        const idx = discoveredKeys.findIndex(
-          k => (uk.alias && k.alias === uk.alias) || (uk.key && k.key === uk.key)
-        );
-        if (idx === -1) {
-          discoveredKeys.push(uk);
-        } else if (uk.spend > discoveredKeys[idx].spend) {
-          discoveredKeys[idx] = uk;
+      try {
+        const userKeys = await this.fetchUserKeys(cleanUrl, userId, primaryKey);
+        for (const uk of userKeys) {
+          const idx = discoveredKeys.findIndex(
+            k => (uk.alias && k.alias === uk.alias) || (uk.key && k.key === uk.key)
+          );
+          if (idx === -1) {
+            discoveredKeys.push(uk);
+          } else if (uk.spend > discoveredKeys[idx].spend) {
+            discoveredKeys[idx] = uk;
+          }
         }
+      } catch (err: any) {
+        lastError = err.message || String(err);
       }
     }
 
@@ -255,7 +256,7 @@ export class LiteLLMProvider implements IProvider {
 
       return {
         success: true,
-        message: `Connected: ${discoveredKeys.length} key(s) • ${spendFormatted} / ${budgetFormatted}${activeDesc}`,
+        message: `Connected: ${discoveredKeys.length} key(s) • ${spendFormatted} / ${budgetFormatted}${activeDesc}${lastError ? ' • Key discovery incomplete' : ''}`,
         details: discoveredKeys,
       };
     }
@@ -291,6 +292,7 @@ export class LiteLLMProvider implements IProvider {
 
     try {
       const allKeys: SingleKeyInfo[] = [];
+      let incomplete = false;
 
       // Step 1: Query primary masterKey
       if (primaryKey) {
@@ -300,21 +302,27 @@ export class LiteLLMProvider implements IProvider {
           if (!userId && primaryOutcome.info.userId) {
             userId = primaryOutcome.info.userId;
           }
+        } else {
+          incomplete = true;
         }
       }
 
       // Step 2: Discover all user keys if userId and primaryKey are available
       if (userId && primaryKey) {
-        const userKeys = await this.fetchUserKeys(cleanUrl, userId, primaryKey);
-        for (const uk of userKeys) {
-          const idx = allKeys.findIndex(
-            k => (uk.alias && k.alias === uk.alias) || (uk.key && k.key === uk.key)
-          );
-          if (idx === -1) {
-            allKeys.push(uk);
-          } else if (uk.spend > allKeys[idx].spend) {
-            allKeys[idx] = uk;
+        try {
+          const userKeys = await this.fetchUserKeys(cleanUrl, userId, primaryKey);
+          for (const uk of userKeys) {
+            const idx = allKeys.findIndex(
+              k => (uk.alias && k.alias === uk.alias) || (uk.key && k.key === uk.key)
+            );
+            if (idx === -1) {
+              allKeys.push(uk);
+            } else if (uk.spend > allKeys[idx].spend) {
+              allKeys[idx] = uk;
+            }
           }
+        } catch {
+          incomplete = true;
         }
       }
 
@@ -322,15 +330,14 @@ export class LiteLLMProvider implements IProvider {
       if (keys.length > 1) {
         for (let i = 1; i < keys.length; i++) {
           const outcome = await this.fetchSingleKey(cleanUrl, keys[i]);
-          if (outcome.ok && outcome.info) {
-            const idx = allKeys.findIndex(
-              k => (outcome.info!.alias && k.alias === outcome.info!.alias) || (k.key === outcome.info!.key)
-            );
-            if (idx === -1) {
-              allKeys.push(outcome.info);
-            } else if (outcome.info.spend > allKeys[idx].spend) {
-              allKeys[idx] = outcome.info;
-            }
+          if (!outcome.ok || !outcome.info) throw new Error(outcome.error || `Key ${i + 1} unavailable`);
+          const idx = allKeys.findIndex(
+            k => (outcome.info!.alias && k.alias === outcome.info!.alias) || (k.key === outcome.info!.key)
+          );
+          if (idx === -1) {
+            allKeys.push(outcome.info);
+          } else if (outcome.info.spend > allKeys[idx].spend) {
+            allKeys[idx] = outcome.info;
           }
         }
       }
@@ -368,18 +375,18 @@ export class LiteLLMProvider implements IProvider {
         }
       } else if (userId && primaryKey) {
         // Fallback to /user/info without key array
-        try {
-          const userUrl = `${cleanUrl}/user/info?user_id=${encodeURIComponent(userId)}`;
-          const headers = { 'Authorization': `Bearer ${primaryKey}` };
-          const res = await fetch(userUrl, { headers, signal: AbortSignal.timeout(6000) });
-          if (res.ok) {
-            const data = await res.json() as any;
-            const info = data.user_info || data;
-            if (typeof info.spend === 'number') totalSpend = info.spend;
-            if (info.max_budget != null) totalBudget = Number(info.max_budget);
-          }
-        } catch {}
+        const userUrl = `${cleanUrl}/user/info?user_id=${encodeURIComponent(userId)}`;
+        const headers = { 'Authorization': `Bearer ${primaryKey}` };
+        const res = await fetch(userUrl, { headers, signal: AbortSignal.timeout(6000) });
+        if (!res.ok) throw new Error(`LiteLLM user info failed (HTTP ${res.status})`);
+        const data = await res.json() as any;
+        const info = data.user_info || data;
+        if (typeof info.spend !== 'number') throw new Error('LiteLLM user info has no spend data');
+        totalSpend = info.spend;
+        if (info.max_budget != null) totalBudget = Number(info.max_budget);
       }
+
+      if (!allKeys.length && (!userId || !primaryKey)) throw new Error('LiteLLM key info unavailable');
 
       const budgetLimit = totalBudget > 0 ? totalBudget : (cfg.dailyBudgetLimit || 150.0);
       const rawPct = budgetLimit > 0 ? (totalSpend / budgetLimit) * 100 : 0;
@@ -396,7 +403,7 @@ export class LiteLLMProvider implements IProvider {
         });
       }
 
-      const status = rawPct >= 90 ? 'warning' : 'healthy';
+      const status = rawPct >= 90 || incomplete ? 'warning' : 'healthy';
       const spendDisplay = this.formatSpend(totalSpend);
       const budgetDisplay = `$${budgetLimit.toFixed(2)}`;
 
@@ -440,7 +447,7 @@ export class LiteLLMProvider implements IProvider {
         source: this.name,
         displayName: 'LiteLLM Proxy',
         status,
-        statusMessage,
+        statusMessage: `${statusMessage}${incomplete ? ' • Key data incomplete' : ''}`,
         lastUpdated: now,
         metrics,
         notifications,

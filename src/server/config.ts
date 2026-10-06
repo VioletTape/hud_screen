@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { isSea } from 'node:sea';
 import { AppConfig } from '../shared/types.js';
 
@@ -87,8 +88,53 @@ export function getConfig(): AppConfig {
   return currentConfig;
 }
 
-export function saveConfig(newConfig: Partial<AppConfig>): AppConfig {
-  currentConfig = {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function validateConfigPatch(value: unknown): asserts value is Partial<AppConfig> {
+  if (!isRecord(value)) throw new TypeError('Configuration must be an object');
+  const defaults = DEFAULT_CONFIG as unknown as Record<string, unknown>;
+  for (const [section, fields] of Object.entries(value)) {
+    if (!Object.hasOwn(defaults, section)) throw new TypeError(`Unknown configuration section: ${section}`);
+    if (section === 'mockMode') {
+      if (typeof fields !== 'boolean') throw new TypeError('mockMode must be a boolean');
+      continue;
+    }
+    if (!isRecord(fields)) throw new TypeError(`${section} must be an object`);
+    const sectionDefaults = defaults[section] as Record<string, unknown>;
+    for (const [field, fieldValue] of Object.entries(fields)) {
+      if (!Object.hasOwn(sectionDefaults, field) && !(section === 'display' && field === 'targetMonitorIndex')) {
+        throw new TypeError(`Unknown configuration field: ${section}.${field}`);
+      }
+      const expected = sectionDefaults[field];
+      const valid = field === 'targetMonitorIndex' && section === 'display'
+        ? Number.isInteger(fieldValue) && (fieldValue as number) >= 0
+        : Array.isArray(expected)
+          ? Array.isArray(fieldValue) && fieldValue.every(item => typeof item === 'string')
+          : typeof fieldValue === typeof expected && (
+            typeof fieldValue !== 'number' || Number.isFinite(fieldValue)
+          );
+      if (!valid) throw new TypeError(`Invalid configuration field: ${section}.${field}`);
+      if (typeof fieldValue === 'number' && (
+        (field === 'port' && (!Number.isInteger(fieldValue) || fieldValue < 1 || fieldValue > 65535)) ||
+        (field === 'pollIntervalSec' && (!Number.isInteger(fieldValue) || fieldValue < 1)) ||
+        (field === 'scale' && fieldValue <= 0) ||
+        (field === 'dailyBudgetLimit' && fieldValue < 0)
+      )) throw new TypeError(`Invalid configuration field: ${section}.${field}`);
+      if (section === 'display' && field === 'orientation' && !['horizontal', 'vertical'].includes(fieldValue as string)) {
+        throw new TypeError('Invalid display.orientation');
+      }
+      if (section === 'display' && field === 'theme' && !['oled-dark', 'cyberpunk', 'graphite'].includes(fieldValue as string)) {
+        throw new TypeError('Invalid display.theme');
+      }
+    }
+  }
+}
+
+export function saveConfig(newConfig: unknown): AppConfig {
+  validateConfigPatch(newConfig);
+  const updatedConfig: AppConfig = {
     ...currentConfig,
     ...newConfig,
     display: { ...currentConfig.display, ...(newConfig.display || {}) },
@@ -99,15 +145,18 @@ export function saveConfig(newConfig: Partial<AppConfig>): AppConfig {
     calendar: { ...currentConfig.calendar, ...(newConfig.calendar || {}) },
   };
 
+  fs.mkdirSync(CONFIG_DIR, { recursive: true });
+  const tempFile = path.join(CONFIG_DIR, `.config-${randomUUID()}.tmp`);
   try {
-    if (!fs.existsSync(CONFIG_DIR)) {
-      fs.mkdirSync(CONFIG_DIR, { recursive: true });
-    }
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(currentConfig, null, 2), 'utf-8');
-    console.log('[Config] Config saved successfully to', CONFIG_FILE);
-  } catch (err) {
-    console.error('[Config] Failed to save config to disk:', err);
+    fs.writeFileSync(tempFile, JSON.stringify(updatedConfig, null, 2), {
+      encoding: 'utf-8', mode: 0o600, flag: 'wx', flush: true,
+    });
+    fs.renameSync(tempFile, CONFIG_FILE);
+  } finally {
+    if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
   }
+  currentConfig = updatedConfig;
+  console.log('[Config] Config saved successfully to', CONFIG_FILE);
   return currentConfig;
 }
 

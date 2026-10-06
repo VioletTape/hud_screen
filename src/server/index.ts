@@ -1,5 +1,4 @@
 import express, { Request, Response } from 'express';
-import cors from 'cors';
 import path from 'node:path';
 import { getAsset, isSea } from 'node:sea';
 import { loadConfig, saveConfig, getSanitizedConfig, getConfig } from './config.js';
@@ -29,7 +28,6 @@ function sendClientFile(res: Response, file: string) {
   return res.sendFile(path.join(CLIENT_DIR, file));
 }
 
-app.use(cors());
 app.use(express.json());
 if (SEA_MODE) {
   app.use((req, res, next) => {
@@ -80,9 +78,13 @@ function broadcastState(state: DashboardState) {
 
 // Polling manager
 let isPolling = false;
+let refreshPending = false;
 
-async function pollAllProviders() {
-  if (isPolling) return;
+async function pollAllProviders(configRefresh = false) {
+  if (isPolling) {
+    if (configRefresh) refreshPending = true;
+    return;
+  }
   isPolling = true;
 
   try {
@@ -148,6 +150,10 @@ async function pollAllProviders() {
     console.error('[Poller] Error during provider polling cycle:', err);
   } finally {
     isPolling = false;
+    if (refreshPending) {
+      refreshPending = false;
+      void pollAllProviders();
+    }
   }
 }
 
@@ -185,10 +191,16 @@ app.get('/api/config', (req: Request, res: Response) => {
 });
 
 app.post('/api/config', (req: Request, res: Response) => {
-  const updated = saveConfig(req.body);
-  // Trigger immediate refresh with new settings
-  setTimeout(pollAllProviders, 100);
-  res.json({ success: true, config: getSanitizedConfig() });
+  try {
+    saveConfig(req.body);
+    // Trigger immediate refresh with new settings
+    setTimeout(() => pollAllProviders(true), 100);
+    res.json({ success: true, config: getSanitizedConfig() });
+  } catch (err) {
+    if (err instanceof TypeError) return res.status(400).json({ success: false, message: err.message });
+    console.error('[Config] Failed to save config to disk:', err);
+    return res.status(500).json({ success: false, message: 'Failed to save configuration' });
+  }
 });
 
 // Test Connection Endpoints
@@ -261,7 +273,7 @@ app.get('/hud', (req: Request, res: Response) => {
   sendClientFile(res, 'index.html');
 });
 
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, '127.0.0.1', () => {
   console.log(`=======================================================`);
   console.log(`🚀 Control Panel Server started!`);
   console.log(`   HUD View (for 8.8" screen):    http://localhost:${PORT}/`);

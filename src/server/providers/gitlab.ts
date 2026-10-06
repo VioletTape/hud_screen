@@ -81,19 +81,23 @@ export class GitLabProvider implements IProvider {
       const username = user.username;
 
       // 2. Parallel queries: Your open MRs, Review Requests, and To-Dos
-      const [myMrsRes, reviewRes, todosRes] = await Promise.allSettled([
+      const getList = async (path: string): Promise<any[]> => {
+        const response = await fetch(`${cleanUrl}/api/v4/${path}`, { headers, signal: AbortSignal.timeout(8000) });
+        if (!response.ok) throw new Error(`GitLab ${path.split('?')[0]} failed (HTTP ${response.status})`);
+        const data = await response.json();
+        if (!Array.isArray(data)) throw new Error(`GitLab ${path.split('?')[0]} returned invalid data`);
+        return data;
+      };
+      const [myMrsList, reviewReqs, todos] = await Promise.all([
         // ponytail: first 20 open MRs; paginate if more need tracking.
-        fetch(`${cleanUrl}/api/v4/merge_requests?state=opened&scope=created_by_me&per_page=20`, { headers, signal: AbortSignal.timeout(8000) }).then(r => r.json()),
-        fetch(`${cleanUrl}/api/v4/merge_requests?state=opened&reviewer_username=${encodeURIComponent(username)}&per_page=20`, { headers, signal: AbortSignal.timeout(8000) }).then(r => r.json()),
-        fetch(`${cleanUrl}/api/v4/todos?state=pending&per_page=20`, { headers, signal: AbortSignal.timeout(8000) }).then(r => r.json()),
+        getList('merge_requests?state=opened&scope=created_by_me&per_page=20'),
+        getList(`merge_requests?state=opened&reviewer_username=${encodeURIComponent(username)}&per_page=20`),
+        getList('todos?state=pending&per_page=20'),
       ]);
 
-      const myMrs = myMrsRes.status === 'fulfilled' && Array.isArray(myMrsRes.value)
-        ? myMrsRes.value.filter((mr: any) => mr.draft !== true && !/^Draft:\s*/i.test(mr.title || ''))
-        : [];
-      const reviewReqs = reviewRes.status === 'fulfilled' && Array.isArray(reviewRes.value) ? reviewRes.value : [];
-      const todos = todosRes.status === 'fulfilled' && Array.isArray(todosRes.value) ? todosRes.value : [];
-      const trackedMrs = await Promise.all(myMrs.map(async (mr: any) => {
+      const myMrs = myMrsList.filter((mr: any) => mr.draft !== true && !/^Draft:\s*/i.test(mr.title || ''));
+      let detailFailed = false;
+      const fetchMr = async (mr: any) => {
         try {
           const [approvalResult, discussionResult, mergeRequestResult] = await Promise.allSettled([
             fetch(`${cleanUrl}/api/v4/projects/${mr.project_id}/merge_requests/${mr.iid}/approvals`, {
@@ -110,6 +114,12 @@ export class GitLabProvider implements IProvider {
               signal: AbortSignal.timeout(8000),
             }).then(r => r.ok ? r.json() : null),
           ]);
+
+          if (approvalResult.status !== 'fulfilled' || !approvalResult.value ||
+              discussionResult.status !== 'fulfilled' || !Array.isArray(discussionResult.value) ||
+              mergeRequestResult.status !== 'fulfilled' || !mergeRequestResult.value) {
+            detailFailed = true;
+          }
 
           const approvals = approvalResult.status === 'fulfilled' ? approvalResult.value : null;
           const mergeRequest = mergeRequestResult.status === 'fulfilled' && mergeRequestResult.value
@@ -150,9 +160,15 @@ export class GitLabProvider implements IProvider {
             blockReason: blockReasons.join('; ') || undefined,
           };
         } catch {
+          detailFailed = true;
           return null;
         }
-      }));
+      };
+      const trackedMrs = [];
+      // ponytail: five MRs at a time; tune this if request bursts or refresh latency become a problem.
+      for (let i = 0; i < myMrs.length; i += 5) {
+        trackedMrs.push(...await Promise.all(myMrs.slice(i, i + 5).map(fetchMr)));
+      }
       const trackedMrList = trackedMrs.filter((mr: any) => mr !== null);
 
       const notifications: NotificationItem[] = [];
@@ -170,8 +186,8 @@ export class GitLabProvider implements IProvider {
         });
       }
 
-      const status = 'healthy';
-      const statusMessage = 'Connected';
+      const status = detailFailed ? 'warning' : 'healthy';
+      const statusMessage = detailFailed ? 'Connected • Some MR details unavailable' : 'Connected';
 
       const metrics: MetricItem[] = [
         {
