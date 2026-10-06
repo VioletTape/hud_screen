@@ -15,8 +15,7 @@
     <main class="hud-grid" id="hud-grid">
       
       <!-- GitLab Card -->
-      <section class="hud-card headless-card" id="card-gitlab">
-        <span class="card-status compact-status" id="gitlab-pill" role="img" aria-label="GitLab status: unknown" title="Status: unknown"></span>
+      <section class="hud-card headless-card" id="card-gitlab" aria-label="GitLab status: unknown">
 
         <div class="metrics-row" id="gitlab-metrics">
           <div class="metric-box">
@@ -37,7 +36,7 @@
       </section>
 
       <!-- LiteLLM Card -->
-      <section class="hud-card card-compact" id="card-litellm">
+      <section class="hud-card card-compact" id="card-litellm" aria-label="LiteLLM status: unknown">
         <div class="card-header">
           <div class="card-icon litellm-icon">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -50,7 +49,6 @@
             <h2 class="card-title">LITELLM PROXY</h2>
             <span class="card-subtitle" id="litellm-sub">$0.00 / $150.00</span>
           </div>
-          <span class="card-status" id="litellm-pill" role="img" aria-label="Status: unknown" title="Status: unknown"></span>
         </div>
 
         <div class="budget-bar-container">
@@ -65,7 +63,7 @@
       </section>
 
       <!-- Slack Card -->
-      <section class="hud-card" id="card-slack">
+      <section class="hud-card" id="card-slack" aria-label="Slack status: unknown">
         <div class="card-header">
           <div class="card-icon slack-icon">
             <svg viewBox="0 0 24 24" fill="currentColor">
@@ -76,7 +74,6 @@
             <h2 class="card-title">SLACK</h2>
             <span class="card-subtitle" id="slack-sub">Checking...</span>
           </div>
-          <span class="card-status" id="slack-pill" role="img" aria-label="Status: unknown" title="Status: unknown"></span>
         </div>
 
         <div class="slack-feed-container">
@@ -101,7 +98,7 @@
       </section>
 
       <!-- Email Card -->
-      <section class="hud-card" id="card-email">
+      <section class="hud-card" id="card-email" aria-label="Email status: unknown">
         <div class="card-header">
           <div class="card-icon email-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -113,7 +110,6 @@
             <h2 class="card-title">MAIL</h2>
             <span class="card-subtitle" id="email-sub">Checking...</span>
           </div>
-          <span class="card-status" id="email-pill" role="img" aria-label="Status: unknown" title="Status: unknown"></span>
         </div>
 
         <div class="metrics-row" id="email-metrics">
@@ -128,14 +124,13 @@
         </div>
       </section>
 
-      <section class="hud-card headless-card" id="card-calendar">
-        <span class="card-status compact-status" id="calendar-pill" role="img" aria-label="Calendar status: unknown" title="Status: unknown"></span>
+      <section class="hud-card headless-card" id="card-calendar" aria-label="Calendar status: unknown">
         <div class="calendar-meeting-list" id="calendar-meetings">
           <div class="meeting-empty">No upcoming meetings</div>
         </div>
       </section>
 
-      <section class="hud-card" id="card-system">
+      <section class="hud-card" id="card-system" aria-label="System status: unknown">
         <div class="metrics-row" id="system-metrics"></div>
       </section>
 

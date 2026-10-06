@@ -30,13 +30,12 @@ function formatTimeUntil(startAt) {
 function renderProviderCard(providerKey, data) {
   if (!data) return;
 
-  const statusDot = document.getElementById(`${providerKey}-pill`);
+  const card = document.getElementById(`card-${providerKey}`);
   const sub = document.getElementById(`${providerKey}-sub`);
 
-  if (statusDot) {
-    statusDot.className = `card-status ${data.status}`;
-    statusDot.title = `Status: ${data.status}`;
-    statusDot.setAttribute('aria-label', statusDot.title);
+  if (card) {
+    card.dataset.status = data.status;
+    card.setAttribute('aria-label', `${data.displayName} status: ${data.status}`);
   }
 
   if (sub && providerKey !== 'litellm') {
