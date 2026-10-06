@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live HUD</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="hud.css">
+</head>
+<body class="hud-body">
+  <div id="hud-container" class="hud-container horizontal">
+    <!-- Main Grid -->
+    <main class="hud-grid" id="hud-grid">
+      
+      <!-- GitLab Card -->
+      <section class="hud-card headless-card" id="card-gitlab">
+        <span class="card-status compact-status" id="gitlab-pill" role="img" aria-label="GitLab status: unknown" title="Status: unknown"></span>
+
+        <div class="metrics-row" id="gitlab-metrics">
+          <div class="metric-box">
+            <div class="metric-value">--</div>
+            <div class="metric-label">Review Req</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-value">--</div>
+            <div class="metric-label">To-Dos</div>
+          </div>
+        </div>
+        <div class="gitlab-mr-feed">
+          <div class="gitlab-mr-feed-title">MY OPEN MRS</div>
+          <div class="gitlab-mr-list" id="gitlab-my-mrs">
+            <div class="gitlab-mr-empty">Checking...</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- LiteLLM Card -->
+      <section class="hud-card card-compact" id="card-litellm">
+        <div class="card-header">
+          <div class="card-icon litellm-icon">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="8.5" />
+              <circle cx="12" cy="12" r="5" />
+              <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
+            </svg>
+          </div>
+          <div class="card-title-group">
+            <h2 class="card-title">LITELLM PROXY</h2>
+            <span class="card-subtitle" id="litellm-sub">$0.00 / $150.00</span>
+          </div>
+          <span class="card-status" id="litellm-pill" role="img" aria-label="Status: unknown" title="Status: unknown"></span>
+        </div>
+
+        <div class="budget-bar-container">
+          <div class="budget-bar-label">
+            <span>Daily Budget Usage</span>
+            <span id="litellm-budget-text">0%</span>
+          </div>
+          <div class="budget-progress-bg">
+            <div class="budget-progress-fill" id="litellm-budget-fill" style="width: 0%;"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Slack Card -->
+      <section class="hud-card" id="card-slack">
+        <div class="card-header">
+          <div class="card-icon slack-icon">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.528 2.528 0 0 1 2.521-2.52 2.528 2.528 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/>
+            </svg>
+          </div>
+          <div class="card-title-group">
+            <h2 class="card-title">SLACK</h2>
+            <span class="card-subtitle" id="slack-sub">Checking...</span>
+          </div>
+          <span class="card-status" id="slack-pill" role="img" aria-label="Status: unknown" title="Status: unknown"></span>
+        </div>
+
+        <div class="slack-feed-container">
+          <div class="slack-feed-section">
+            <div class="slack-feed-header">
+              <span class="slack-feed-title">DIRECT MESSAGES</span>
+            </div>
+            <div class="slack-feed-list" id="slack-dms-list">
+              <div class="slack-item-empty">0 DMs</div>
+            </div>
+          </div>
+
+          <div class="slack-feed-section">
+            <div class="slack-feed-header">
+              <span class="slack-feed-title">UNREAD CHANNEL MENTIONS</span>
+            </div>
+            <div class="slack-feed-list" id="slack-mentions-list">
+              <div class="slack-item-empty">0 unread mentions</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Email Card -->
+      <section class="hud-card" id="card-email">
+        <div class="card-header">
+          <div class="card-icon email-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+              <polyline points="22,6 12,13 2,6"/>
+            </svg>
+          </div>
+          <div class="card-title-group">
+            <h2 class="card-title">MAIL</h2>
+            <span class="card-subtitle" id="email-sub">Checking...</span>
+          </div>
+          <span class="card-status" id="email-pill" role="img" aria-label="Status: unknown" title="Status: unknown"></span>
+        </div>
+
+        <div class="metrics-row" id="email-metrics">
+          <div class="metric-box highlight">
+            <div class="metric-value" id="email-unread">0</div>
+            <div class="metric-label">Unread Inbox</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-value" id="email-total">--</div>
+            <div class="metric-label">Total Messages</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="hud-card headless-card" id="card-calendar">
+        <span class="card-status compact-status" id="calendar-pill" role="img" aria-label="Calendar status: unknown" title="Status: unknown"></span>
+        <div class="calendar-meeting-list" id="calendar-meetings">
+          <div class="meeting-empty">No upcoming meetings</div>
+        </div>
+      </section>
+
+      <section class="hud-card" id="card-system">
+        <div class="metrics-row" id="system-metrics"></div>
+      </section>
+
+    </main>
+
+    <!-- Urgent Notification Bar (Pops up on critical events) -->
+    <div id="urgent-banner" class="urgent-banner hidden">
+      <div class="urgent-icon">⚠️</div>
+      <div class="urgent-content">
+        <div class="urgent-title" id="urgent-title">Alert Title</div>
+        <div class="urgent-sub" id="urgent-sub">Alert details</div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="hud.js"></script>
+</body>
+</html>

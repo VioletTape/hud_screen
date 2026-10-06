@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Control Panel - Setup & Configuration</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="settings.css">
+</head>
+<body class="settings-body">
+  <div class="settings-layout">
+    
+    <header class="app-header">
+      <div class="header-branding">
+        <div class="branding-badge">HUD CONTROLLER</div>
+        <h1>Control Panel Settings</h1>
+        <p class="branding-sub">Manage authentication, connected services, and the 8.8" secondary display.</p>
+      </div>
+
+      <div class="header-actions">
+        <!-- Demo Mode Toggle -->
+        <label class="switch-control" title="Use simulated live data for testing">
+          <input type="checkbox" id="mock-mode-toggle">
+          <span class="switch-slider"></span>
+          <span class="switch-label">Demo Mock Data</span>
+        </label>
+
+        <!-- Save Button -->
+        <button id="btn-save-all" class="btn btn-primary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+            <polyline points="17 21 17 13 7 13 7 21"/>
+            <polyline points="7 3 7 8 15 8"/>
+          </svg>
+          Save All Changes
+        </button>
+      </div>
+    </header>
+
+    <!-- Top Banner: 8.8" Screen Launcher & Mouse Lock -->
+    <section class="launcher-banner">
+      <div class="launcher-info">
+        <div class="launcher-title">
+          <span class="pulse-icon">🖥️</span>
+          <strong>8.8" Screen Launcher &amp; Mouse Lock</strong>
+        </div>
+        <p class="launcher-desc">
+          Detect attached monitors and launch the HUD borderless onto your secondary screen, or lock the mouse to keep it from wandering onto the 8.8" display.
+        </p>
+      </div>
+
+      <div class="launcher-controls">
+        <div class="monitor-select-group">
+          <label for="monitor-select">Target Monitor:</label>
+          <select id="monitor-select" class="form-select">
+            <option value="">Detecting monitors...</option>
+          </select>
+          <button id="btn-refresh-monitors" class="btn btn-sm btn-outline" title="Refresh Displays">🔄</button>
+        </div>
+
+        <button id="btn-launch-hud" class="btn btn-accent">
+          🚀 Launch on Display
+        </button>
+
+        <button id="btn-toggle-mouse-lock" class="btn btn-warning">
+          🔒 Lock Mouse to Main Screen
+        </button>
+      </div>
+    </section>
+
+    <!-- Live HUD Mini Preview -->
+    <section class="preview-section">
+      <div class="section-title-row">
+        <h2>Live HUD Preview (Real-Time)</h2>
+        <div class="preview-options">
+          <label>Orientation:</label>
+          <button type="button" id="btn-orient-horiz" class="btn btn-xs active">Horizontal (1920×480)</button>
+          <button type="button" id="btn-orient-vert" class="btn btn-xs">Vertical (480×1920)</button>
+          <a href="/index.html" target="_blank" class="btn btn-xs btn-outline">Open Fullscreen ↗</a>
+        </div>
+      </div>
+      <div class="preview-frame-container" id="preview-container">
+        <iframe src="/index.html" id="preview-iframe" class="preview-iframe"></iframe>
+      </div>
+    </section>
+
+    <!-- Main Configuration Form Grid -->
+    <div class="config-grid">
+      
+      <!-- GitLab Service Card -->
+      <div class="service-card" id="card-gitlab-config">
+        <div class="service-card-header">
+          <div class="service-identity">
+            <span class="service-icon gitlab">🦊</span>
+            <div>
+              <h3>GitLab (Self-Hosted)</h3>
+              <p>MR reviews, pipeline failures &amp; to-dos</p>
+            </div>
+          </div>
+          <label class="switch-control">
+            <input type="checkbox" id="gl-enabled">
+            <span class="switch-slider"></span>
+          </label>
+        </div>
+
+        <div class="service-card-body">
+          <div class="form-group">
+            <label for="gl-url">GitLab Base URL</label>
+            <input type="url" id="gl-url" class="form-input" placeholder="https://gitlab.yourcompany.internal">
+          </div>
+          <div class="form-group">
+            <label for="gl-token">Personal Access Token (api / read_api scope)</label>
+            <div class="input-password-wrapper">
+              <input type="password" id="gl-token" class="form-input" placeholder="glpat-xxxxxxxxxxxxxxxxxxxx">
+              <button type="button" class="btn-toggle-pw">👁️</button>
+            </div>
+            <span class="field-hint" id="gl-token-status"></span>
+          </div>
+
+          <div class="test-action-row">
+            <button type="button" id="btn-test-gitlab" class="btn btn-sm btn-outline">
+              Test Connection
+            </button>
+            <span class="test-feedback" id="gl-test-feedback"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- LiteLLM Service Card -->
+      <div class="service-card" id="card-litellm-config">
+        <div class="service-card-header">
+          <div class="service-identity">
+            <span class="service-icon litellm">⚡</span>
+            <div>
+              <h3>LiteLLM Proxy (Self-Hosted)</h3>
+              <p>Key spend, budget limit &amp; active models</p>
+            </div>
+          </div>
+          <label class="switch-control">
+            <input type="checkbox" id="llm-enabled">
+            <span class="switch-slider"></span>
+          </label>
+        </div>
+
+        <div class="service-card-body">
+          <div class="form-group">
+            <label for="llm-url">LiteLLM Proxy URL</label>
+            <input type="url" id="llm-url" class="form-input" placeholder="http://127.0.0.1:4000">
+          </div>
+          <div class="form-row">
+            <div class="form-group flex-2">
+              <label for="llm-key">API Key(s) (Bearer)</label>
+              <div class="input-password-wrapper">
+                <input type="password" id="llm-key" class="form-input" placeholder="sk-xxxxxxxxxxxxxxxx (separate multiples with comma/space)">
+                <button type="button" class="btn-toggle-pw">👁️</button>
+              </div>
+              <span class="field-hint" id="llm-key-status">Queries <code>/key/info</code> for key spend &amp; budget. Multi-key supported.</span>
+            </div>
+            <div class="form-group flex-1">
+              <label for="llm-budget">Fallback Budget ($)</label>
+              <input type="number" id="llm-budget" class="form-input" placeholder="150" min="1" step="1">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="llm-user-id">User ID (optional fallback)</label>
+            <input type="text" id="llm-user-id" class="form-input" placeholder="e.g. your_username or email">
+            <span class="field-hint" style="color: var(--text-dim)">Used if querying user-level budget via /user/info.</span>
+          </div>
+
+          <div class="test-action-row">
+            <button type="button" id="btn-test-litellm" class="btn btn-sm btn-outline">
+              Test Connection
+            </button>
+            <span class="test-feedback" id="llm-test-feedback"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Slack Service Card -->
+      <div class="service-card" id="card-slack-config">
+        <div class="service-card-header">
+          <div class="service-identity">
+            <span class="service-icon slack">💬</span>
+            <div>
+              <h3>Slack Workspace</h3>
+              <p>Unread direct messages &amp; urgent mentions</p>
+            </div>
+          </div>
+          <label class="switch-control">
+            <input type="checkbox" id="slack-enabled">
+            <span class="switch-slider"></span>
+          </label>
+        </div>
+
+        <div class="service-card-body">
+          <div class="form-group">
+            <label for="slack-token">User Token (xoxp-) or Bot Token (xoxb-)</label>
+            <div class="input-password-wrapper">
+              <input type="password" id="slack-token" class="form-input" placeholder="xoxb-... or xoxp-...">
+              <button type="button" class="btn-toggle-pw">👁️</button>
+            </div>
+            <span class="field-hint" id="slack-token-status"></span>
+          </div>
+
+          <div class="form-group">
+            <label for="slack-tracked-channels">Channels to track</label>
+            <input type="text" id="slack-tracked-channels" class="form-input" placeholder="#dev-general, team-updates">
+            <span class="field-hint">Comma-separated names, # optional. Requires live mode and a token that can access each channel.</span>
+          </div>
+
+          <div class="test-action-row">
+            <button type="button" id="btn-test-slack" class="btn btn-sm btn-outline">
+              Test Connection
+            </button>
+            <span class="test-feedback" id="slack-test-feedback"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Email Service Card -->
+      <div class="service-card" id="card-email-config">
+        <div class="service-card-header">
+          <div class="service-identity">
+            <span class="service-icon email">📬</span>
+            <div>
+              <h3>Work Email (IMAP)</h3>
+              <p>Unread inbox notifications &amp; urgent mail</p>
+            </div>
+          </div>
+          <label class="switch-control">
+            <input type="checkbox" id="email-enabled">
+            <span class="switch-slider"></span>
+          </label>
+        </div>
+
+        <div class="service-card-body">
+          <div class="form-row">
+            <div class="form-group flex-2">
+              <label for="email-host">IMAP Host</label>
+              <input type="text" id="email-host" class="form-input" placeholder="imap.example.com">
+            </div>
+            <div class="form-group flex-1">
+              <label for="email-port">Port</label>
+              <input type="number" id="email-port" class="form-input" value="993">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="email-user">Username / Email</label>
+              <input type="text" id="email-user" class="form-input" placeholder="user@company.com">
+            </div>
+            <div class="form-group flex-1">
+              <label for="email-password">App Password / Password</label>
+              <div class="input-password-wrapper">
+                <input type="password" id="email-password" class="form-input" placeholder="Password">
+                <button type="button" class="btn-toggle-pw">👁️</button>
+              </div>
+              <span class="field-hint" id="email-pw-status"></span>
+            </div>
+          </div>
+
+          <div class="test-action-row">
+            <button type="button" id="btn-test-email" class="btn btn-sm btn-outline">
+              Test IMAP Connection
+            </button>
+            <span class="test-feedback" id="email-test-feedback"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Published Outlook Calendar Feeds -->
+      <div class="service-card" id="card-calendar-config">
+        <div class="service-card-header">
+          <div class="service-identity">
+            <span class="service-icon">📅</span>
+            <div>
+              <h3>Outlook Calendars</h3>
+              <p>Next meetings from published ICS feeds</p>
+            </div>
+          </div>
+          <label class="switch-control">
+            <input type="checkbox" id="calendar-enabled">
+            <span class="switch-slider"></span>
+          </label>
+        </div>
+
+        <div class="service-card-body">
+          <p class="field-hint calendar-secret-hint">Published links act like passwords. They are masked here and stored in config.json beside the EXE.</p>
+          <div class="form-group">
+            <label for="calendar-corporate-url">Corporate calendar.ics URL</label>
+            <div class="input-password-wrapper">
+              <input type="password" id="calendar-corporate-url" class="form-input" inputmode="url" autocomplete="off" placeholder="https://outlook.office365.com/.../calendar.ics">
+              <button type="button" class="btn-toggle-pw">👁️</button>
+            </div>
+            <span class="field-hint" id="calendar-corporate-status"></span>
+            <label class="calendar-clear-control"><input type="checkbox" id="calendar-clear-corporate"> Remove saved link</label>
+          </div>
+
+          <div class="form-group">
+            <label for="calendar-personal-url">Personal calendar.ics URL</label>
+            <div class="input-password-wrapper">
+              <input type="password" id="calendar-personal-url" class="form-input" inputmode="url" autocomplete="off" placeholder="https://outlook.office365.com/.../calendar.ics">
+              <button type="button" class="btn-toggle-pw">👁️</button>
+            </div>
+            <span class="field-hint" id="calendar-personal-status"></span>
+            <label class="calendar-clear-control"><input type="checkbox" id="calendar-clear-personal"> Remove saved link</label>
+          </div>
+
+          <div class="test-action-row">
+            <button type="button" id="btn-test-calendar" class="btn btn-sm btn-outline">Test Calendar Feeds</button>
+            <span class="test-feedback" id="calendar-test-feedback"></span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast-message" class="toast hidden"></div>
+
+  </div>
+
+  <script src="settings.js"></script>
+</body>
+</html>

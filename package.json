@@ -1,0 +1,44 @@
+{
+  "name": "control-panel",
+  "version": "1.0.0",
+  "description": "HUD Status and Notification Control Panel for secondary 8.8\" screen",
+  "main": "src/server/index.ts",
+  "type": "module",
+  "engines": {
+    "node": ">=20.12.0"
+  },
+  "scripts": {
+    "start": "tsx src/server/index.ts",
+    "dev": "tsx watch src/server/index.ts",
+    "build": "tsc",
+    "build:exe": "node scripts/build-sea.mjs",
+    "launch:windows": "powershell.exe -ExecutionPolicy Bypass -File scripts/launch-hud.ps1"
+  },
+  "keywords": [
+    "control-panel",
+    "dashboard",
+    "hud",
+    "gitlab",
+    "litellm",
+    "slack",
+    "email"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "imapflow": "^1.0.171",
+    "node-ical": "^0.25.6"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.13.1",
+    "esbuild": "^0.28.2",
+    "postject": "^1.0.0-alpha.6",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

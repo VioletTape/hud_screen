@@ -1,0 +1,634 @@
+:root {
+  --bg-color: #06080d;
+  --card-bg: rgba(14, 18, 27, 0.85);
+  --card-border: rgba(255, 255, 255, 0.08);
+  --card-border-hover: rgba(0, 240, 255, 0.3);
+  
+  --text-main: #f1f5f9;
+  --text-muted: #94a3b8;
+  --text-dim: #475569;
+
+  --accent-cyan: #00f0ff;
+  --accent-emerald: #10b981;
+  --accent-amber: #f59e0b;
+  --accent-rose: #f43f5e;
+  --accent-purple: #a855f7;
+
+  --font-main: 'Plus Jakarta Sans', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--bg-color);
+  color: var(--text-main);
+  font-family: var(--font-main);
+  cursor: none !important; /* Hide mouse cursor on secondary HUD */
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+.hud-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  padding: 12px 16px;
+  background: radial-gradient(circle at 50% 0%, rgba(15, 23, 42, 0.7) 0%, rgba(6, 8, 13, 0.98) 100%);
+  position: relative;
+}
+
+/* Main Grid */
+.hud-grid {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  flex-flow: row wrap;
+  align-content: flex-start;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* Vertical 480x1920 Layout */
+.hud-container.vertical .hud-grid {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 0;
+}
+
+.hud-container.vertical .hud-card {
+  width: 100%;
+}
+
+@media (orientation: portrait) {
+  .hud-grid {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 0;
+  }
+
+  .hud-card { width: 100%; }
+}
+
+/* HUD Card */
+.hud-card {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  width: max-content;
+  max-width: 100%;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  backdrop-filter: blur(8px);
+  position: relative;
+  overflow: hidden;
+}
+.hud-card.hidden { display: none; }
+
+.hud-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 100%;
+  background: var(--accent-cyan);
+}
+
+#card-gitlab::before { background: #fc6d26; }
+#card-litellm::before {
+  top: 6px;
+  bottom: 6px;
+  height: auto;
+  width: 4px;
+  border-radius: 0 4px 4px 0;
+  background: var(--accent-cyan);
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.45);
+}
+#card-slack::before { background: #e01e5a; }
+#card-email::before { background: var(--accent-purple); }
+#card-calendar::before { background: var(--accent-cyan); }
+#card-calendar { padding: 6px 8px; }
+#card-system::before { background: var(--accent-emerald); }
+#card-system {
+  align-self: start;
+  padding: 8px 12px;
+}
+#card-system .metrics-row {
+  grid-template-columns: repeat(3, max-content);
+  margin: 0;
+}
+#card-system .metric-box {
+  min-width: 0;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+}
+#card-system .metric-value { font-size: 21px; }
+#card-system .metric-label { margin-top: 0; font-size: 11px; }
+
+.headless-card { padding: 8px 10px; }
+.compact-status {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 5px;
+  height: 5px;
+  box-shadow: none;
+}
+#card-gitlab .metrics-row { margin: 0 0 4px; }
+#card-gitlab .gitlab-mr-feed { margin-top: 0; }
+
+/* LiteLLM Card specific styling to match litellm.png */
+#card-litellm {
+  align-self: start;
+  background: #060e15;
+  border: 1px solid rgba(0, 240, 255, 0.15);
+  border-radius: 12px;
+  padding: 14px 18px 12px 18px;
+  justify-content: flex-start;
+  gap: 0;
+}
+
+#card-litellm .card-header {
+  margin-bottom: 0;
+}
+
+#card-litellm .litellm-icon {
+  background: #0b1822;
+  border: 1px solid rgba(0, 240, 255, 0.25);
+  color: var(--accent-cyan);
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+}
+
+#card-litellm .litellm-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+#card-litellm .card-title {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #ffffff;
+}
+
+#card-litellm .card-subtitle {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #7b93a4;
+  letter-spacing: 0.02em;
+  margin-top: 2px;
+}
+
+#card-litellm .budget-bar-container {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+#card-litellm .budget-bar-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: #7b93a4;
+  letter-spacing: 0.03em;
+  margin-bottom: 7px;
+}
+
+#card-litellm .budget-progress-bg {
+  width: 100%;
+  height: 7px;
+  background: #111c26;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+#card-litellm .budget-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #00f0ff 0%, #00df9a 100%);
+  transition: width 0.4s ease;
+}
+
+#card-litellm .budget-progress-fill.warn {
+  background: linear-gradient(90deg, #f59e0b 0%, #f43f5e 100%);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.card-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  flex-shrink: 0;
+}
+
+.card-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.litellm-icon { color: var(--accent-cyan); }
+.slack-icon { color: #ecb22e; }
+.email-icon { color: var(--accent-purple); }
+
+.card-title-group {
+  flex: 1;
+  min-width: 0;
+}
+
+.card-title {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.card-subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+.card-status {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: currentColor;
+  color: var(--text-dim);
+  box-shadow: 0 0 8px currentColor;
+  flex-shrink: 0;
+}
+
+.card-status.healthy { color: var(--accent-emerald); }
+.card-status.warning { color: var(--accent-amber); }
+.card-status.error { color: var(--accent-rose); }
+
+.card-status.disabled { color: var(--text-dim); }
+
+/* Metrics Row */
+.metrics-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+  gap: 8px;
+  margin: 6px 0;
+}
+
+.metric-box {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.metric-box.highlight {
+  background: rgba(0, 240, 255, 0.05);
+  border-color: rgba(0, 240, 255, 0.2);
+}
+
+.metric-box.alert-box {
+  background: rgba(244, 63, 94, 0.05);
+  border-color: rgba(244, 63, 94, 0.2);
+}
+
+.metric-value {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: #fff;
+}
+
+.metric-value.status-good { color: var(--accent-emerald); }
+.metric-value.status-warning { color: var(--accent-amber); }
+.metric-value.status-bad { color: var(--accent-rose); }
+
+.metric-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 4px;
+}
+
+.gitlab-mr-feed {
+  margin-top: 6px;
+}
+
+.gitlab-mr-feed-title {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.gitlab-mr-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.gitlab-mr-line,
+.gitlab-mr-empty {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.2;
+  color: #e2e8f0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gitlab-mr-empty {
+  color: var(--text-dim);
+}
+
+.calendar-meeting-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.meeting-item {
+  min-height: 88px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: 1fr auto;
+  align-items: start;
+  column-gap: 8px;
+  row-gap: 3px;
+  padding: 8px 9px 7px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-left: 3px solid var(--accent-cyan);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.meeting-item.personal { border-left-color: var(--accent-purple); }
+.meeting-title {
+  align-self: center;
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.15;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.meeting-countdown {
+  font-family: var(--font-mono);
+  font-size: 21px;
+  font-weight: 700;
+  color: var(--accent-cyan);
+  white-space: nowrap;
+}
+
+.meeting-item.personal .meeting-countdown { color: #c084fc; }
+.meeting-datetime {
+  grid-column: 1 / -1;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.meeting-empty {
+  padding: 4px 8px;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+/* LiteLLM Progress Bar */
+.budget-bar-container {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.budget-bar-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.budget-progress-bg {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.budget-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-cyan), var(--accent-emerald));
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+
+.budget-progress-fill.warn {
+  background: linear-gradient(90deg, var(--accent-amber), var(--accent-rose));
+}
+
+/* Urgent Alert Popup Banner */
+.urgent-banner {
+  position: absolute;
+  bottom: 12px;
+  left: 16px;
+  right: 16px;
+  background: rgba(244, 63, 94, 0.95);
+  color: #fff;
+  border-radius: 8px;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 4px 24px rgba(244, 63, 94, 0.5);
+  animation: slide-up 0.4s ease;
+  z-index: 100;
+}
+
+.urgent-banner.hidden {
+  display: none;
+}
+
+@keyframes slide-up {
+  from { transform: translateY(40px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.urgent-icon {
+  font-size: 20px;
+}
+
+.urgent-title {
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+}
+
+.urgent-sub {
+  font-size: 11px;
+  opacity: 0.9;
+}
+
+/* Slack Feed Component */
+.slack-feed-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.slack-feed-section {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.slack-feed-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.slack-feed-title {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.slack-feed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.slack-item {
+  display: flex;
+  align-items: center;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #e2e8f0;
+}
+
+.slack-dm-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+}
+
+.slack-sender {
+  font-weight: 600;
+  color: #ffffff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.slack-sep {
+  color: var(--text-dim);
+  font-weight: 400;
+}
+
+.slack-count {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--accent-amber);
+  background: rgba(245, 158, 11, 0.15);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.slack-channel-name {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: #38bdf8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: rgba(56, 189, 248, 0.08);
+  padding: 2px 7px;
+  border-radius: 4px;
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  display: inline-block;
+}
+
+.slack-item-empty {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  font-style: italic;
+  padding: 2px 0;
+}
+
+.slack-item-empty .scope-hint {
+  font-size: 9px;
+  color: var(--accent-amber);
+  opacity: 0.8;
+  font-style: normal;
+  margin-left: 4px;
+}
