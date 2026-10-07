@@ -79,6 +79,8 @@ function broadcastState(state: DashboardState) {
 // Polling manager
 let isPolling = false;
 let refreshPending = false;
+// Keep the last GitLab result through five consecutive failed polls.
+let gitlabConsecutiveErrors = 0;
 
 async function pollAllProviders(configRefresh = false) {
   if (isPolling) {
@@ -94,6 +96,7 @@ async function pollAllProviders(configRefresh = false) {
     const systemStats = getSystemStats();
 
     if (cfg.mockMode) {
+      gitlabConsecutiveErrors = 0;
       // Use mock providers
       const mockData = getMockProvidersData();
       Object.assign(providersResult, mockData);
@@ -122,6 +125,13 @@ async function pollAllProviders(configRefresh = false) {
       for (const res of results) {
         if (res.status === 'fulfilled') {
           const providerData = res.value;
+          if (providerData.source === 'gitlab') {
+            gitlabConsecutiveErrors = providerData.status === 'error' ? gitlabConsecutiveErrors + 1 : 0;
+            if (providerData.status === 'error' && gitlabConsecutiveErrors <= 5) {
+              if (latestState.providers.gitlab) providersResult.gitlab = latestState.providers.gitlab;
+              continue;
+            }
+          }
           providersResult[providerData.source] = providerData;
         }
       }

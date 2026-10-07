@@ -31,7 +31,7 @@ export class GitLabProvider implements IProvider {
     try {
       const resp = await fetch(`${cleanUrl}/api/v4/user`, {
         headers: this.getHeaders(cfg.token),
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(10_000),
       });
 
       if (!resp.ok) {
@@ -73,7 +73,7 @@ export class GitLabProvider implements IProvider {
 
     try {
       // 1. Get current user
-      const userResp = await fetch(`${cleanUrl}/api/v4/user`, { headers, signal: AbortSignal.timeout(6000) });
+      const userResp = await fetch(`${cleanUrl}/api/v4/user`, { headers, signal: AbortSignal.timeout(10_000) });
       if (!userResp.ok) {
         throw new Error(`GitLab Auth Failed (HTTP ${userResp.status})`);
       }
@@ -82,7 +82,7 @@ export class GitLabProvider implements IProvider {
 
       // 2. Parallel queries: Your open MRs, Review Requests, and To-Dos
       const getList = async (path: string): Promise<any[]> => {
-        const response = await fetch(`${cleanUrl}/api/v4/${path}`, { headers, signal: AbortSignal.timeout(8000) });
+        const response = await fetch(`${cleanUrl}/api/v4/${path}`, { headers, signal: AbortSignal.timeout(10_000) });
         if (!response.ok) throw new Error(`GitLab ${path.split('?')[0]} failed (HTTP ${response.status})`);
         const data = await response.json();
         if (!Array.isArray(data)) throw new Error(`GitLab ${path.split('?')[0]} returned invalid data`);
@@ -102,16 +102,16 @@ export class GitLabProvider implements IProvider {
           const [approvalResult, discussionResult, mergeRequestResult] = await Promise.allSettled([
             fetch(`${cleanUrl}/api/v4/projects/${mr.project_id}/merge_requests/${mr.iid}/approvals`, {
               headers,
-              signal: AbortSignal.timeout(8000),
+              signal: AbortSignal.timeout(10_000),
             }).then(r => r.ok ? r.json() : null),
             // ponytail: first 100 discussion threads per MR; paginate if reviews exceed this.
             fetch(`${cleanUrl}/api/v4/projects/${mr.project_id}/merge_requests/${mr.iid}/discussions?per_page=100`, {
               headers,
-              signal: AbortSignal.timeout(8000),
+              signal: AbortSignal.timeout(10_000),
             }).then(r => r.ok ? r.json() : null),
             fetch(`${cleanUrl}/api/v4/projects/${mr.project_id}/merge_requests/${mr.iid}`, {
               headers,
-              signal: AbortSignal.timeout(8000),
+              signal: AbortSignal.timeout(10_000),
             }).then(r => r.ok ? r.json() : null),
           ]);
 
