@@ -6,6 +6,7 @@ interface IMState {
   unread: number;
   updated: number;
   user: string;
+  isGroup: boolean;
 }
 
 export class SlackProvider implements IProvider {
@@ -16,6 +17,7 @@ export class SlackProvider implements IProvider {
   private imStates: Map<string, IMState> = new Map();
   private imChannels: Map<string, any> = new Map();
   private imListCursor = '';
+  private mpimListCursor = '';
   private imScanCursor = 0;
   private rateLimitedUntil = 0;
   private currentUserId = '';
@@ -114,6 +116,33 @@ export class SlackProvider implements IProvider {
     return count;
   }
 
+  private async resolveGroupName(channelId: string, request: (url: string, timeout: number) => Promise<any>, missingScopes: string[]): Promise<string> {
+    // Without the authenticated ID we cannot reliably exclude the current user.
+    if (!this.currentUserId) return 'Group DM';
+    const members: string[] = [];
+    let cursor = '';
+    do {
+      const params = new URLSearchParams({ channel: channelId, limit: '100' });
+      if (cursor) params.set('cursor', cursor);
+      const data = await request(`https://slack.com/api/conversations.members?${params}`, 5000);
+      if (!data.ok) {
+        if (data.error === 'missing_scope') missingScopes.push('mpim:read');
+        return 'Group DM';
+      }
+      for (const userId of data.members || []) {
+        if (userId !== this.currentUserId && !members.includes(userId)) members.push(userId);
+      }
+      cursor = data.response_metadata?.next_cursor || '';
+    } while (cursor && members.length < 3);
+
+    const names: string[] = [];
+    for (const userId of members.slice(0, 3)) {
+      const name = await this.resolveUserName(userId, request);
+      names.push(name.trim().split(/\s+/)[0] || userId);
+    }
+    return names.join(', ') || 'Group DM';
+  }
+
   async fetchData(): Promise<ProviderResult> {
     const now = new Date().toISOString();
     if (!this.isEnabled()) {
@@ -169,20 +198,34 @@ export class SlackProvider implements IProvider {
         } catch (_) {}
       }
 
-      // 1. Fetch IM Conversations list
-      const imParams = new URLSearchParams({ types: 'im', limit: '200' });
-      if (this.imListCursor) imParams.set('cursor', this.imListCursor);
-      const imsData = await request(`https://slack.com/api/conversations.list?${imParams}`, 8000);
-      if (!imsData.ok) {
-        throw new Error(`Slack IM error: ${imsData.error}`);
-      }
-      this.imListCursor = imsData.response_metadata?.next_cursor || '';
-      for (const im of imsData.channels || []) {
-        if (im.is_user_deleted) {
-          this.imChannels.delete(im.id);
-          this.imStates.delete(im.id);
-        } else {
-          this.imChannels.set(im.id, im);
+      // 1. Discover both individual and group DMs, with independent pagination.
+      for (const type of ['im', 'mpim'] as const) {
+        try {
+          const params = new URLSearchParams({ types: type, exclude_archived: 'true', limit: '200' });
+          const cursor = type === 'im' ? this.imListCursor : this.mpimListCursor;
+          if (cursor) params.set('cursor', cursor);
+          const data = await request(`https://slack.com/api/conversations.list?${params}`, 8000);
+          if (!data.ok) {
+            if (type === 'mpim' && data.error === 'missing_scope') {
+              missingScopes.push('mpim:read');
+              continue;
+            }
+            throw new Error(`Slack ${type.toUpperCase()} error: ${data.error}`);
+          }
+          if (type === 'im') this.imListCursor = data.response_metadata?.next_cursor || '';
+          else this.mpimListCursor = data.response_metadata?.next_cursor || '';
+          for (const im of data.channels || []) {
+            if (im.is_user_deleted || im.is_archived) {
+              this.imChannels.delete(im.id);
+              this.imStates.delete(im.id);
+            } else {
+              this.imChannels.set(im.id, { ...im, is_mpim: type === 'mpim' });
+            }
+          }
+        } catch (err) {
+          if (type === 'im') throw err;
+          // Keep individual DMs available when group discovery fails.
+          requestLimited = true;
         }
       }
       const allIms = [...this.imChannels.values()];
@@ -214,11 +257,26 @@ export class SlackProvider implements IProvider {
             const infoData = await request(`https://slack.com/api/conversations.info?channel=${im.id}`, 5000);
             if (infoData.ok && infoData.channel) {
               const ch = infoData.channel;
-              const unread = Math.max(ch.unread_count_display || 0, ch.unread_count || 0);
+              const isGroup = Boolean(ch.is_mpim || im.is_mpim);
+              let unread = Math.max(ch.unread_count_display || 0, ch.unread_count || 0);
+              if (isGroup && ch.unread_count_display === undefined && ch.unread_count === undefined) {
+                if (!ch.last_read) {
+                  requestLimited = true;
+                  return;
+                }
+                try {
+                  unread = await this.countUnreadChannelMessages(im.id, ch.last_read, request);
+                } catch (err: any) {
+                  if (err.message === 'missing_scope') missingScopes.push('mpim:history');
+                  requestLimited = true;
+                  return;
+                }
+              }
               this.imStates.set(im.id, {
                 unread,
                 updated: im.updated || 0,
-                user: ch.user || im.user,
+                user: ch.user || im.user || '',
+                isGroup,
               });
             }
           } catch (_) {
@@ -228,7 +286,7 @@ export class SlackProvider implements IProvider {
       }
 
       // Collect all unread DMs
-      const unreadImList: Array<{ id: string; user: string; unread: number; updated: number }> = [];
+      const unreadImList: Array<IMState & { id: string }> = [];
       let totalUnreadDMs = 0;
 
       for (const [id, state] of this.imStates.entries()) {
@@ -246,7 +304,16 @@ export class SlackProvider implements IProvider {
       const topDMs: Array<{ sender: string; count: number; text: string }> = [];
 
       for (const item of top3Dms) {
-        const sender = await this.resolveUserName(item.user, request);
+        let sender: string;
+        if (item.isGroup) {
+          try {
+            sender = await this.resolveGroupName(item.id, request, missingScopes);
+          } catch (_) {
+            sender = 'Group DM';
+          }
+        } else {
+          sender = await this.resolveUserName(item.user, request);
+        }
         topDMs.push({
           sender,
           count: item.unread,
@@ -390,6 +457,8 @@ export class SlackProvider implements IProvider {
         unreadItems.push(`${unavailableTrackedChannels.size} tracked channel${unavailableTrackedChannels.size > 1 ? 's' : ''} unavailable`);
       }
       if (totalMentions > 0) unreadItems.push(`${totalMentions} unread mention${totalMentions > 1 ? 's' : ''}`);
+      if (missingScopes.includes('mpim:read')) unreadItems.push('Group DMs require mpim:read');
+      if (missingScopes.includes('mpim:history')) unreadItems.push('Group DM unread counts require mpim:history');
       if (rateLimited) unreadItems.push('Slack rate limited');
       else if (requestLimited) unreadItems.push('Slack data incomplete');
       const status = unreadItems.length > 0 ? 'warning' : 'healthy';

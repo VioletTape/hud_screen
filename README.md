@@ -73,9 +73,11 @@ http://localhost:3888/settings
 ### 3. Slack Workspace
 - **Monitors**:
   - Direct message (DM) unread counts (highlighted in glowing amber/rose).
+  - Group DMs in the direct messages area, labeled with up to three participants' first names, excluding the authenticated user.
   - Unread channel mentions.
   - Active conversation counts.
 - **Auth**: Slack Bot User Token (`xoxb-...`) or User OAuth Token (`xoxp-...`).
+- **Group DMs**: Use your User OAuth Token to monitor your conversations. Enable `mpim:read` alongside `im:read` and `users:read`; add `mpim:history` for unread counting when Slack omits group unread counts. Reinstall/reauthorize the Slack app to apply added scopes. Bot tokens can only access conversations available to the bot.
 - **Test Button**: Runs `auth.test` and verifies workspace name.
 
 ### 4. Work Email (IMAP)
