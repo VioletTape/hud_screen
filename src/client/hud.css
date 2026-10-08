@@ -129,14 +129,16 @@ html, body {
   padding: 8px 12px;
 }
 #card-system .metrics-row {
-  grid-template-columns: repeat(3, max-content);
+  grid-template-columns: repeat(3, 1fr);
   margin: 0;
 }
 #card-system .metric-box {
   min-width: 0;
   flex-direction: row;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
   padding: 8px 14px;
 }
 #card-system .metric-value { font-size: 26.25px; }
