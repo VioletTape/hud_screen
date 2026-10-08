@@ -95,6 +95,10 @@ export function getMockProvidersData(): Record<string, ProviderResult> {
         { channel: '#architecture-review' },
         { channel: '#dev-announcements' },
       ],
+      trackedChannelUnreads: [
+        { channel: '#incident-response', count: 4 },
+        { channel: '#architecture-review', count: 2 },
+      ],
       missingScopes: [],
     },
   };

@@ -522,6 +522,18 @@ html, body {
   margin-bottom: 2px;
 }
 
+.slack-feed-section.hidden {
+  display: none;
+}
+
+.channel-item {
+  gap: 6px;
+}
+
+.channel-item .slack-count {
+  flex-shrink: 0;
+}
+
 .slack-feed-title {
   font-family: var(--font-mono);
   font-size: 11.25px;

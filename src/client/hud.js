@@ -131,22 +131,21 @@ function renderProviderCard(providerKey, data) {
         }
       }
 
-      // Render Top 3 Channel Mentions: "name of channel"
-      const mentionsListEl = document.getElementById('slack-mentions-list');
-      if (mentionsListEl) {
-        const topMentions = data.details?.topMentions;
-        if (Array.isArray(topMentions) && topMentions.length > 0) {
-          mentionsListEl.innerHTML = topMentions.map(m => `
+      // Show only tracked channels with unread messages.
+      const channelsSectionEl = document.getElementById('slack-channels-section');
+      const channelsListEl = document.getElementById('slack-channels-list');
+      if (channelsSectionEl && channelsListEl) {
+        const trackedChannels = data.details?.trackedChannelUnreads;
+        const unreadChannels = Array.isArray(trackedChannels)
+          ? trackedChannels.filter(channel => channel.count > 0)
+          : [];
+        channelsSectionEl.classList.toggle('hidden', unreadChannels.length === 0);
+        channelsListEl.innerHTML = unreadChannels.map(channel => `
             <div class="slack-item channel-item">
-              <span class="slack-channel-name">${escapeHtml(m.channel)}</span>
+              <span class="slack-channel-name">${escapeHtml(channel.channel)}</span>
+              <span class="slack-count">${escapeHtml(channel.count)}</span>
             </div>
           `).join('');
-        } else {
-          const hint = data.details?.missingScopes?.includes('search:read')
-            ? ' <span class="scope-hint">(scope req.)</span>'
-            : '';
-          mentionsListEl.innerHTML = `<div class="slack-item-empty">0 unread mentions${hint}</div>`;
-        }
       }
       break;
     }

@@ -290,6 +290,7 @@ export class SlackProvider implements IProvider {
       // 3. Fetch Channel unreads
       let unreadChannelsCount = 0;
       let trackedChannelMessages = 0;
+      const trackedChannelUnreads: Array<{ channel: string; count: number }> = [];
       const unavailableTrackedChannels = new Set<string>();
 
       try {
@@ -339,7 +340,9 @@ export class SlackProvider implements IProvider {
                   const hasUnreadCount = infoData.channel.unread_count_display !== undefined || infoData.channel.unread_count !== undefined;
                   if (trackedChannels.length && !hasUnreadCount && infoData.channel.last_read) {
                     try {
-                      trackedChannelMessages += await this.countUnreadChannelMessages(ch.id, infoData.channel.last_read, request);
+                      const unread = await this.countUnreadChannelMessages(ch.id, infoData.channel.last_read, request);
+                      trackedChannelMessages += unread;
+                      if (unread > 0) trackedChannelUnreads.push({ channel: `#${ch.name}`, count: unread });
                     } catch (err: any) {
                       if (err.message === 'missing_scope') {
                         const historyScope = ch.is_private ? 'groups:history' : 'channels:history';
@@ -358,6 +361,7 @@ export class SlackProvider implements IProvider {
                   const unread = Math.max(infoData.channel.unread_count_display || 0, infoData.channel.unread_count || 0);
                   if (trackedChannels.length) {
                     trackedChannelMessages += unread;
+                    if (unread > 0) trackedChannelUnreads.push({ channel: `#${ch.name}`, count: unread });
                   } else if (unread > 0) {
                     unreadChannelsCount++;
                   }
@@ -435,6 +439,9 @@ export class SlackProvider implements IProvider {
         details: {
           topDMs,
           topMentions,
+          trackedChannelUnreads: trackedChannelUnreads.sort((a, b) =>
+            trackedChannels.indexOf(a.channel.slice(1).toLowerCase()) - trackedChannels.indexOf(b.channel.slice(1).toLowerCase())
+          ),
           trackedChannelMessages,
           unavailableTrackedChannels: Array.from(unavailableTrackedChannels),
           missingScopes: Array.from(new Set(missingScopes)),
@@ -466,6 +473,7 @@ export class SlackProvider implements IProvider {
         details: {
           topDMs: [],
           topMentions: [],
+          trackedChannelUnreads: [],
           missingScopes: [],
         },
       };
