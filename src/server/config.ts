@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { isSea } from 'node:sea';
 import { AppConfig } from '../shared/types.js';
 
-const CONFIG_DIR = isSea() ? path.dirname(process.execPath) : path.resolve(process.cwd(), 'config');
+export const CONFIG_DIR = isSea() ? path.dirname(process.execPath) : path.resolve(process.cwd(), 'config');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 
 export const DEFAULT_CONFIG: AppConfig = {

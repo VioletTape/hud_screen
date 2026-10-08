@@ -1,6 +1,7 @@
 import { IProvider } from './base.js';
 import { ProviderResult, MetricItem, NotificationItem } from '../../shared/types.js';
 import { getConfig } from '../config.js';
+import { logError } from '../error-log.js';
 
 export class GitLabProvider implements IProvider {
   name = 'gitlab';
@@ -35,6 +36,7 @@ export class GitLabProvider implements IProvider {
       });
 
       if (!resp.ok) {
+        logError('GitLab connection test /user', `HTTP ${resp.status}${resp.headers.get('Retry-After') ? `; Retry-After: ${resp.headers.get('Retry-After')}` : ''}`);
         if (resp.status === 401) {
           return { success: false, message: 'Authentication failed (HTTP 401): Invalid Personal Access Token.' };
         }
@@ -48,6 +50,7 @@ export class GitLabProvider implements IProvider {
         details: { id: user.id, username: user.username, name: user.name, web_url: user.web_url },
       };
     } catch (err: any) {
+      logError('GitLab connection test /user', err);
       return { success: false, message: `Connection error: ${err.message || String(err)}` };
     }
   }
@@ -70,22 +73,36 @@ export class GitLabProvider implements IProvider {
 
     const cleanUrl = this.cleanBaseUrl(cfg.baseUrl);
     const headers = this.getHeaders(cfg.token);
+    const request = async (path: string, timeout: number): Promise<{ response: Response; data: any }> => {
+      const endpoint = path.split('?')[0];
+      try {
+        const response = await fetch(`${cleanUrl}/api/v4/${path}`, { headers, signal: AbortSignal.timeout(timeout) });
+        if (!response.ok) {
+          logError(`GitLab ${endpoint}`, `HTTP ${response.status}${response.headers.get('Retry-After') ? `; Retry-After: ${response.headers.get('Retry-After')}` : ''}`);
+        }
+        return { response, data: response.ok ? await response.json() : null };
+      } catch (err) {
+        logError(`GitLab ${endpoint}`, err);
+        throw err;
+      }
+    };
 
     try {
       // 1. Get current user
-      const userResp = await fetch(`${cleanUrl}/api/v4/user`, { headers, signal: AbortSignal.timeout(10_000) });
+      const { response: userResp, data: user } = await request('user', 10_000);
       if (!userResp.ok) {
         throw new Error(`GitLab Auth Failed (HTTP ${userResp.status})`);
       }
-      const user = await userResp.json() as any;
       const username = user.username;
 
       // 2. Parallel queries: Your open MRs, Review Requests, and To-Dos
       const getList = async (path: string): Promise<any[]> => {
-        const response = await fetch(`${cleanUrl}/api/v4/${path}`, { headers, signal: AbortSignal.timeout(10_000) });
+        const { response, data } = await request(path, 10_000);
         if (!response.ok) throw new Error(`GitLab ${path.split('?')[0]} failed (HTTP ${response.status})`);
-        const data = await response.json();
-        if (!Array.isArray(data)) throw new Error(`GitLab ${path.split('?')[0]} returned invalid data`);
+        if (!Array.isArray(data)) {
+          logError(`GitLab ${path.split('?')[0]}`, 'Invalid list response');
+          throw new Error(`GitLab ${path.split('?')[0]} returned invalid data`);
+        }
         return data;
       };
       const [myMrsList, reviewReqs, todos] = await Promise.all([
@@ -100,19 +117,10 @@ export class GitLabProvider implements IProvider {
       const fetchMr = async (mr: any) => {
         try {
           const [approvalResult, discussionResult, mergeRequestResult] = await Promise.allSettled([
-            fetch(`${cleanUrl}/api/v4/projects/${mr.project_id}/merge_requests/${mr.iid}/approvals`, {
-              headers,
-              signal: AbortSignal.timeout(10_000),
-            }).then(r => r.ok ? r.json() : null),
+            request(`projects/${mr.project_id}/merge_requests/${mr.iid}/approvals`, 10_000).then(r => r.data),
             // ponytail: first 100 discussion threads per MR; paginate if reviews exceed this.
-            fetch(`${cleanUrl}/api/v4/projects/${mr.project_id}/merge_requests/${mr.iid}/discussions?per_page=100`, {
-              headers,
-              signal: AbortSignal.timeout(10_000),
-            }).then(r => r.ok ? r.json() : null),
-            fetch(`${cleanUrl}/api/v4/projects/${mr.project_id}/merge_requests/${mr.iid}`, {
-              headers,
-              signal: AbortSignal.timeout(10_000),
-            }).then(r => r.ok ? r.json() : null),
+            request(`projects/${mr.project_id}/merge_requests/${mr.iid}/discussions?per_page=100`, 10_000).then(r => r.data),
+            request(`projects/${mr.project_id}/merge_requests/${mr.iid}`, 10_000).then(r => r.data),
           ]);
 
           if (approvalResult.status !== 'fulfilled' || !approvalResult.value ||

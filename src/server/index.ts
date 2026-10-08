@@ -9,6 +9,7 @@ import { EmailProvider } from './providers/email.js';
 import { CalendarProvider } from './providers/calendar.js';
 import { getMockProvidersData } from './providers/mock.js';
 import { getSystemStats } from './system-stats.js';
+import { logError } from './error-log.js';
 import {
   detectWindowsMonitors,
   launchHUDOnMonitor,
@@ -109,6 +110,7 @@ async function pollAllProviders(configRefresh = false) {
         emailProvider.fetchData(),
         calendarProvider.fetchData().catch(err => {
           console.error('[Calendar] Polling failed:', err);
+          logError('Calendar polling', err);
           return {
             source: 'calendar',
             displayName: 'Upcoming Meetings',
@@ -129,10 +131,14 @@ async function pollAllProviders(configRefresh = false) {
             gitlabConsecutiveErrors = providerData.status === 'error' ? gitlabConsecutiveErrors + 1 : 0;
             if (providerData.status === 'error' && gitlabConsecutiveErrors <= 5) {
               if (latestState.providers.gitlab) providersResult.gitlab = latestState.providers.gitlab;
+              logError(providerData.displayName, providerData.statusMessage || 'Unknown provider error');
               continue;
             }
           }
           providersResult[providerData.source] = providerData;
+          if (providerData.status === 'error') {
+            logError(providerData.displayName, providerData.statusMessage || 'Unknown provider error');
+          }
         }
       }
     }
@@ -158,6 +164,7 @@ async function pollAllProviders(configRefresh = false) {
     broadcastState(latestState);
   } catch (err) {
     console.error('[Poller] Error during provider polling cycle:', err);
+    logError('Poller', err);
   } finally {
     isPolling = false;
     if (refreshPending) {
@@ -209,6 +216,7 @@ app.post('/api/config', (req: Request, res: Response) => {
   } catch (err) {
     if (err instanceof TypeError) return res.status(400).json({ success: false, message: err.message });
     console.error('[Config] Failed to save config to disk:', err);
+    logError('Config save', err);
     return res.status(500).json({ success: false, message: 'Failed to save configuration' });
   }
 });
