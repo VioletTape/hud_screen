@@ -459,6 +459,7 @@ export class SlackProvider implements IProvider {
             if (infoData.ok && infoData.channel) {
               const ch = infoData.channel;
               const isGroup = Boolean(ch.is_mpim || im.is_mpim);
+              // Slack's display count is authoritative, including 0; the legacy count can stay stale.
               let unread = ch.unread_count_display ?? ch.unread_count ?? 0;
               if (isGroup && ch.unread_count_display === undefined && ch.unread_count === undefined) {
                 if (!ch.last_read) {
@@ -651,6 +652,7 @@ export class SlackProvider implements IProvider {
                     if (trackedChannels.length) unavailableTrackedChannels.add(ch.name);
                     return;
                   }
+                  // Slack's display count is authoritative, including 0; the legacy count can stay stale.
                   const unread = infoData.channel.unread_count_display ?? infoData.channel.unread_count ?? 0;
                   if (trackedChannels.length) {
                     trackedChannelMessages += unread;
