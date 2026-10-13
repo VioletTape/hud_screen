@@ -459,7 +459,7 @@ export class SlackProvider implements IProvider {
             if (infoData.ok && infoData.channel) {
               const ch = infoData.channel;
               const isGroup = Boolean(ch.is_mpim || im.is_mpim);
-              let unread = Math.max(ch.unread_count_display || 0, ch.unread_count || 0);
+              let unread = ch.unread_count_display ?? ch.unread_count ?? 0;
               if (isGroup && ch.unread_count_display === undefined && ch.unread_count === undefined) {
                 if (!ch.last_read) {
                   requestLimited = true;
@@ -651,7 +651,7 @@ export class SlackProvider implements IProvider {
                     if (trackedChannels.length) unavailableTrackedChannels.add(ch.name);
                     return;
                   }
-                  const unread = Math.max(infoData.channel.unread_count_display || 0, infoData.channel.unread_count || 0);
+                  const unread = infoData.channel.unread_count_display ?? infoData.channel.unread_count ?? 0;
                   if (trackedChannels.length) {
                     trackedChannelMessages += unread;
                     if (unread > 0) trackedChannelUnreads.push({ channel: `#${ch.name}`, count: unread });
