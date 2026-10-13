@@ -164,7 +164,7 @@ export class GitLabProvider implements IProvider {
           return {
             projectName,
             iid: mr.iid,
-            status: blockReasons.length ? 'blocked' : needsResponse ? 'comments' : hasApproval ? 'approved' : 'waiting',
+            status: hasApproval ? 'approved' : blockReasons.length ? 'blocked' : needsResponse ? 'comments' : 'waiting',
             blockReason: blockReasons.join('; ') || undefined,
           };
         } catch {
