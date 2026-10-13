@@ -21,6 +21,8 @@ function formatMeetingDate(meeting) {
   return `${day}.${month}.${date.getFullYear()} ${time}`;
 }
 
+// Clamps imminent meetings (< 1 min) to 1m so '0m' or negative offsets never appear before
+// the ticker ticks. Uses compact 'Xm' (< 1 hr) or 'H:MM' (>= 1 hr) to fit 8.8" bar display constraints.
 function formatTimeUntil(startAt) {
   const minutes = Math.max(1, Math.ceil((new Date(startAt).getTime() - Date.now()) / 60000));
   if (minutes < 60) return `${minutes}m`;
@@ -38,6 +40,8 @@ function renderProviderCard(providerKey, data) {
     card.setAttribute('aria-label', `${data.displayName} status: ${data.status}`);
   }
 
+  // LiteLLM manages its own custom "$spent / $limit" subtitle in its case block;
+  // skip default statusMessage overwrite to prevent UI flicker.
   if (sub && providerKey !== 'litellm') {
     sub.textContent = data.statusMessage || 'Idle';
   }
@@ -101,6 +105,7 @@ function renderProviderCard(providerKey, data) {
           pct = parseFloat(pctStr.replace('%', '')) || 0;
         }
         budgetText.textContent = pctStr;
+        // Guarantee any non-zero spend renders a visible subpixel sliver (minimum 1.5% width).
         const fillWidth = pct > 0 ? Math.max(pct, 1.5) : 0;
         budgetFill.style.width = `${Math.min(fillWidth, 100)}%`;
         if (pct >= 80) {
@@ -167,6 +172,7 @@ function renderProviderCard(providerKey, data) {
       const list = document.getElementById('calendar-meetings');
       const meetings = data.details?.meetings || [];
       if (list) {
+        // Large meetings (>20 attendees) take visual styling precedence over recurring/single indicators.
         list.innerHTML = meetings.length
           ? meetings.map(meeting => `
               <div class="meeting-item ${meeting.source === 'personal' ? 'personal' : 'corporate'} ${meeting.participantCount > 20 ? 'large' : meeting.recurring ? 'recurring' : 'single'}" aria-label="${meeting.participantCount > 20 ? 'Large meeting; ' : ''}${meeting.recurring ? 'Recurring' : 'Single'} ${escapeHtml(meeting.source)} calendar: ${escapeHtml(meeting.title)}">
@@ -182,6 +188,8 @@ function renderProviderCard(providerKey, data) {
   }
 }
 
+// Latch ID of displayed alert across SSE push intervals to prevent 10s auto-dismiss
+// from being repeatedly re-triggered or flickering on every state poll.
 let lastUrgentId = '';
 function checkUrgentAlerts(alerts) {
   const critical = alerts?.find(a => a.level === 'critical');
@@ -240,6 +248,8 @@ function connectEventStream() {
   };
 
   evtSource.onerror = () => {
+    // Explicitly terminate failed socket before scheduling reconnect to prevent browser
+    // auto-reconnect from creating orphaned duplicate EventSource instances.
     evtSource.close();
     // Auto reconnect after 3 seconds
     setTimeout(connectEventStream, 3000);

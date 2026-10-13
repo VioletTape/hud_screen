@@ -4,6 +4,8 @@ import { randomUUID } from 'node:crypto';
 import { isSea } from 'node:sea';
 import { AppConfig } from '../shared/types.js';
 
+// When running as a packaged SEA binary, resolve config adjacent to the executable
+// rather than process.cwd(), ensuring stability when launched from shortcuts or startup scripts.
 export const CONFIG_DIR = isSea() ? path.dirname(process.execPath) : path.resolve(process.cwd(), 'config');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 
@@ -64,6 +66,8 @@ export function loadConfig(): AppConfig {
     if (fs.existsSync(CONFIG_FILE)) {
       const raw = fs.readFileSync(CONFIG_FILE, 'utf-8');
       const parsed = JSON.parse(raw);
+      // Perform a two-level deep merge per section so newly added default options
+      // are preserved when reading older config files from disk.
       currentConfig = {
         ...DEFAULT_CONFIG,
         ...parsed,
@@ -92,6 +96,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+// Strict runtime schema validation against DEFAULT_CONFIG prototypes and numeric bounds.
+// targetMonitorIndex is explicitly allowed as an optional display property not present in defaults.
 function validateConfigPatch(value: unknown): asserts value is Partial<AppConfig> {
   if (!isRecord(value)) throw new TypeError('Configuration must be an object');
   const defaults = DEFAULT_CONFIG as unknown as Record<string, unknown>;
@@ -146,6 +152,8 @@ export function saveConfig(newConfig: unknown): AppConfig {
   };
 
   fs.mkdirSync(CONFIG_DIR, { recursive: true });
+  // Write atomically via a temporary file with owner-only permissions (0o600) and sync flush
+  // before renaming, preventing partial-write corruption and protecting credential confidentiality.
   const tempFile = path.join(CONFIG_DIR, `.config-${randomUUID()}.tmp`);
   try {
     fs.writeFileSync(tempFile, JSON.stringify(updatedConfig, null, 2), {
@@ -185,6 +193,8 @@ export function getSanitizedConfig(): Record<string, any> {
       password: cfg.email.password ? '••••••••' : '',
       hasPassword: Boolean(cfg.email.password),
     },
+    // Private iCal feeds embed auth tokens directly within query parameters or path segments;
+    // strip URLs completely and return boolean indicators to avoid leaking access tokens to the UI.
     calendar: {
       ...cfg.calendar,
       corporateUrl: '',

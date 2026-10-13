@@ -40,6 +40,8 @@ async function loadConfig() {
     // Populate toggles
     document.getElementById('mock-mode-toggle').checked = Boolean(cfg.mockMode);
 
+    // Secret inputs (tokens, passwords) are intentionally kept empty on load to avoid
+    // persisting masked placeholder characters; status badges indicate if credentials exist.
     // GitLab
     document.getElementById('gl-enabled').checked = Boolean(cfg.gitlab?.enabled);
     document.getElementById('gl-url').value = cfg.gitlab?.baseUrl || '';
@@ -72,7 +74,8 @@ async function loadConfig() {
       document.getElementById('email-pw-status').textContent = 'Password stored';
     }
 
-    // Published calendar feeds
+    // Published calendar feeds (may contain embedded private tokens in their URL query strings;
+    // inputs are blanked on load with separate status indicators to protect confidentiality)
     document.getElementById('calendar-enabled').checked = Boolean(cfg.calendar?.enabled);
     for (const [urlId, statusId, clearId, isStored] of [
       ['calendar-corporate-url', 'calendar-corporate-status', 'calendar-clear-corporate', cfg.calendar?.hasCorporateUrl],
@@ -148,6 +151,7 @@ async function loadMonitors() {
       const opt = document.createElement('option');
       opt.value = m.index;
       opt.textContent = m.label;
+      // Auto-select the 8.8" ultrawide bar display (1920x480 / 480x1920) if detected.
       if (m.isLikely88Inch) {
         opt.selected = true;
         defaultIndex = m.index;
@@ -325,7 +329,8 @@ document.getElementById('btn-save-all').addEventListener('click', async () => {
     },
   };
 
-  // Only send password/tokens if user typed something new
+  // Sparse patch: only send password/tokens if user typed something new so existing
+  // credentials are retained by the server rather than overwritten with blank values.
   const glToken = document.getElementById('gl-token').value.trim();
   if (glToken) payload.gitlab.token = glToken;
 
@@ -338,6 +343,8 @@ document.getElementById('btn-save-all').addEventListener('click', async () => {
   const emailPw = document.getElementById('email-password').value;
   if (emailPw) payload.email.password = emailPw;
 
+  // Tri-state calendar feed updates: blank input preserves existing stored URL,
+  // new text updates it, and checking the explicit 'clear' box deletes it.
   for (const [field, inputId, clearId] of [
     ['corporateUrl', 'calendar-corporate-url', 'calendar-clear-corporate'],
     ['personalUrl', 'calendar-personal-url', 'calendar-clear-personal'],

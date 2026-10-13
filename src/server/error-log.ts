@@ -13,6 +13,8 @@ export function logError(source: string, error: unknown): void {
   try {
     fs.mkdirSync(LOG_DIR, { recursive: true });
     fs.appendFileSync(path.join(LOG_DIR, `errors-${hour}.log`), `${now.toISOString()} [${source}] ${message}\n`);
+    // Hourly rolling log with 24-hour retention. Lexicographical string comparison (< cutoff)
+    // works directly on ISO timestamp substrings (YYYY-MM-DD-HH) without Date object parsing.
     for (const file of fs.readdirSync(LOG_DIR)) {
       if (/^errors-\d{4}-\d{2}-\d{2}-\d{2}\.log$/.test(file) && file.slice(7, 20) < cutoff) {
         fs.unlinkSync(path.join(LOG_DIR, file));

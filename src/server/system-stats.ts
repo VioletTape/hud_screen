@@ -5,6 +5,8 @@ import { ProviderResult } from '../shared/types.js';
 
 const execFileAsync = promisify(execFile);
 
+// Node os.cpus() reports cumulative ticks since boot; sample two snapshots 500ms apart
+// to calculate active vs. idle CPU delta across all cores.
 async function getCpuUsage(): Promise<number | null> {
   const before = cpus();
   await new Promise(resolve => setTimeout(resolve, 500));
@@ -23,6 +25,8 @@ async function getCpuUsage(): Promise<number | null> {
   return total > 0 ? Math.max(0, Math.min(100, (1 - idle / total) * 100)) : null;
 }
 
+// Query vendor-agnostic 3D engine utilization via Windows Performance Counters (WMI/CIM),
+// or query nvidia-smi when running on Linux hosts.
 async function getGpuUsage(): Promise<number | null> {
   try {
     const { stdout } = process.platform === 'win32'

@@ -17,6 +17,8 @@ function text(value: VEvent['summary'] | undefined): string {
   return value?.val || '';
 }
 
+// RFC 5545 §3.8.4.1: Exclude room resources (CUTYPE=ROOM) and informational recipients
+// (ROLE=NON-PARTICIPANT) so participant counts reflect actual human attendees.
 function countParticipants(event: VEvent): number {
   const attendees = Array.isArray(event.attendee) ? event.attendee : event.attendee ? [event.attendee] : [];
   return attendees.filter(attendee =>
@@ -38,6 +40,7 @@ function eventMeetings(event: VEvent, now: Date, source: CalendarSource): Meetin
   });
 
   if (!event.rrule) {
+    // RFC 5545: datetype === 'date' indicates a VALUE=DATE property (all-day event without time or timezone).
     return event.start >= now
       ? [makeMeeting(event.start, text(event.summary), event.datetype === 'date', event.uid)]
       : [];
@@ -52,6 +55,9 @@ function eventMeetings(event: VEvent, now: Date, source: CalendarSource): Meetin
   let cursor = new Date(now.getTime() - 1);
   let attempts = 0;
 
+  // _rrule.next() yields raw rule occurrences unaware of EXDATE cancellations or RECURRENCE-ID overrides.
+  // Bound iteration attempts to (exceptions + 2) to avoid infinite loops while finding the next 2 active occurrences.
+  // Expand a tight ±1ms window around the target occurrence to hydrate the instance.
   while (meetings.length < 2 && attempts <= exceptionCount + 2) {
     const next = rule._rrule.next(cursor, false);
     if (!next) break;
@@ -69,6 +75,8 @@ function eventMeetings(event: VEvent, now: Date, source: CalendarSource): Meetin
     }
   }
 
+  // RFC 5545: Rescheduled or modified recurring instances are stored as separate VEVENTs in
+  // event.recurrences (keyed by RECURRENCE-ID); evaluate them directly in case they moved into the future.
   for (const override of Object.values(event.recurrences || {}) as VEvent[]) {
     if (override.status !== 'CANCELLED' && override.start && override.start >= now) {
       meetings.push(makeMeeting(override.start, text(override.summary), override.datetype === 'date', event.uid));

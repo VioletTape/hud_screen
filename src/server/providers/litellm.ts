@@ -45,6 +45,8 @@ export class LiteLLMProvider implements IProvider {
     return `${key.slice(0, 4)}...${key.slice(-4)}`;
   }
 
+  // Display sub-cent precision (4 decimals) for spend under $10 to capture micro-spend from low-volume
+  // token usage, collapsing trailing zeroes to standard currency format when whole cents are reached.
   private formatSpend(amount: number): string {
     if (amount === 0) return '$0.00';
     if (amount < 10) {
@@ -57,6 +59,9 @@ export class LiteLLMProvider implements IProvider {
     return `$${amount.toFixed(2)}`;
   }
 
+  // Handle LiteLLM schema variations (nested .info vs flat, key_alias vs key_name).
+  // Master keys query /key/info?key=...; standard virtual keys (sk-*) lack global read permissions
+  // and must inspect their own metadata via /key/info with their token as the Bearer credential.
   private async fetchSingleKey(cleanUrl: string, key: string, authBearer?: string): Promise<FetchKeyOutcome> {
     const maskedKey = this.getMasked(key);
     const bearer = authBearer || key;
@@ -136,6 +141,8 @@ export class LiteLLMProvider implements IProvider {
     return { ok: false, error: lastError, statusCode: lastStatusCode };
   }
 
+  // Prefer /user/info which embeds hydrated key metadata; fall back to /key/list + batch hydration
+  // for LiteLLM proxy deployments that do not return keys in user profile responses.
   private async fetchUserKeys(cleanUrl: string, userId: string, authBearer: string): Promise<SingleKeyInfo[]> {
     const headers = {
       'Accept': 'application/json',
@@ -227,6 +234,8 @@ export class LiteLLMProvider implements IProvider {
     if (userId && primaryKey) {
       try {
         const userKeys = await this.fetchUserKeys(cleanUrl, userId, primaryKey);
+        // Deduplicate keys discovered across user listings and config by alias/token; retain the maximum
+        // spend to prevent out-of-order or cached proxy responses from resetting spend metrics.
         for (const uk of userKeys) {
           const idx = discoveredKeys.findIndex(
             k => (uk.alias && k.alias === uk.alias) || (uk.key && k.key === uk.key)
@@ -311,6 +320,8 @@ export class LiteLLMProvider implements IProvider {
       if (userId && primaryKey) {
         try {
           const userKeys = await this.fetchUserKeys(cleanUrl, userId, primaryKey);
+          // Deduplicate keys discovered across user listings and config by alias/token; retain the maximum
+          // spend to prevent out-of-order or cached proxy responses from resetting spend metrics.
           for (const uk of userKeys) {
             const idx = allKeys.findIndex(
               k => (uk.alias && k.alias === uk.alias) || (uk.key && k.key === uk.key)

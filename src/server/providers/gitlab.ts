@@ -112,6 +112,7 @@ export class GitLabProvider implements IProvider {
         getList('todos?state=pending&per_page=20'),
       ]);
 
+      // Support both GitLab 13.2+ native draft property and legacy 'Draft:' title prefix conventions.
       const myMrs = myMrsList.filter((mr: any) => mr.draft !== true && !/^Draft:\s*/i.test(mr.title || ''));
       let detailFailed = false;
       const fetchMr = async (mr: any) => {
@@ -137,6 +138,9 @@ export class GitLabProvider implements IProvider {
             ? discussionResult.value
             : [];
           const hasApproval = Array.isArray(approvals?.approved_by) && approvals.approved_by.length > 0;
+          // Evaluates inline diff discussions (DiffNote) excluding system audit notes.
+          // If the MR author posted the most recent note in an unresolved thread, treat it as answered
+          // so author replies clear the action badge even if the reviewer hasn't toggled resolved in GitLab.
           const needsResponse = discussions.some((discussion: any) => {
             const codeNotes = Array.isArray(discussion.notes)
               ? discussion.notes.filter((note: any) => !note.system && note.type === 'DiffNote')
@@ -154,6 +158,8 @@ export class GitLabProvider implements IProvider {
 
           const projectName = mr.references?.full?.split('/').pop()?.split('!')[0] || '';
           if (!projectName) return null;
+          // Map GitLab 15.6+ detailed_merge_status and commit divergence to actionable states.
+          // Precedence: approved > blocked (conflicts/rebase/divergence) > comments (pending replies) > waiting.
           const behindCount = Number(mergeRequest.diverged_commits_count) || 0;
           const detailedMergeStatus = mergeRequest.detailed_merge_status;
           const blockReasons = [

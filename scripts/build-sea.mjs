@@ -8,6 +8,8 @@ import { build } from 'esbuild';
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 if (process.platform !== 'win32') throw new Error('Run this build with Windows Node.js.');
 
+// Node.js Single Executable Application (SEA) asset dictionary support (`sea-config.json` assets field)
+// was stabilized in Node v20.12.0. Earlier versions fail during SEA blob generation.
 const [major, minor] = process.versions.node.split('.').map(Number);
 if (major < 20 || (major === 20 && minor < 12)) throw new Error('Node.js 20.12 or newer is required.');
 
@@ -35,11 +37,15 @@ try {
   const bundlePath = path.join(temporaryDir, 'server.cjs');
   const blobPath = path.join(temporaryDir, 'sea.blob');
   const seaConfigPath = path.join(temporaryDir, 'sea-config.json');
+  // Normalize Windows backslashes to POSIX forward slashes so embedded asset keys
+  // match the URL routing schema expected by node:sea getAsset('client/...').
   const assets = Object.fromEntries(listFiles(clientDir).map(file => [
     `client/${path.relative(clientDir, file).split(path.sep).join('/')}`,
     file,
   ]));
 
+  // Node SEA requires a single CommonJS bundle entrypoint; esbuild bundles TypeScript
+  // and runtime dependencies into a self-contained CJS artifact.
   await build({
     entryPoints: [path.join(projectRoot, 'src', 'server', 'index.ts')],
     outfile: bundlePath,
@@ -49,6 +55,8 @@ try {
     target: 'node20',
   });
 
+  // Disable V8 snapshot and bytecode cache to prevent architecture-dependent instruction
+  // failures across different Windows CPU models.
   writeFileSync(seaConfigPath, JSON.stringify({
     main: bundlePath,
     output: blobPath,
@@ -63,6 +71,8 @@ try {
   const postjectCli = path.join(projectRoot, 'node_modules', 'postject', 'dist', 'cli.js');
   if (!existsSync(postjectCli)) throw new Error('postject is missing. Run npm install first.');
   copyFileSync(process.execPath, executablePath);
+  // Inject the SEA blob into the PE executable's dedicated NODE_SEA_BLOB resource section
+  // using the official Node SEA sentinel fuse.
   run(process.execPath, [
     postjectCli,
     executablePath,
@@ -72,6 +82,7 @@ try {
     'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2',
   ]);
 
+  // Seed default configuration only if target doesn't exist, preventing user config loss during rebuilds.
   if (existsSync(configSource) && !existsSync(configTarget)) copyFileSync(configSource, configTarget);
   console.log(`Built ${path.relative(projectRoot, executablePath)}`);
 } finally {

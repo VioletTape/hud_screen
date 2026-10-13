@@ -142,6 +142,9 @@ export class SlackProvider implements IProvider {
     }
   }
 
+  // Persisting discovery state (IM lists, cursors, reconciled counts) across restarts
+  // prevents burning Slack Tier 2/3 rate limits upon every process boot.
+  // Written atomically via a temp file rename to prevent corrupting state if interrupted.
   private saveDiscoverySnapshot(): void {
     if (!this.snapshotDirty || !this.currentUserId) return;
     const now = Date.now();
@@ -242,6 +245,9 @@ export class SlackProvider implements IProvider {
     return userId;
   }
 
+  // When bot tokens or MPIMs lack 'unread_count_display', we walk conversations.history
+  // backwards from the current cursor/lastRead. Results are cached and reconciled incrementally
+  // up to HISTORY_RECONCILE_MS to avoid paging through high-volume channels on every poll.
   private async countUnreadChannelMessages(channelId: string, lastRead: string, request: (url: string, timeout: number) => Promise<any>): Promise<{ count: number; cacheHit: boolean }> {
     const now = Date.now();
     const cached = this.historyCounts.get(channelId);
@@ -282,6 +288,8 @@ export class SlackProvider implements IProvider {
     return { count, cacheHit };
   }
 
+  // MPIMs lack human-readable channel names in conversations.list; we synthesize a title
+  // by querying members, excluding the current authenticated user, and joining the first 3 names.
   private async resolveGroupName(channelId: string, request: (url: string, timeout: number) => Promise<any>, missingScopes: string[]): Promise<string> {
     // Without the authenticated ID we cannot reliably exclude the current user.
     if (!this.currentUserId) return 'Group DM';
@@ -333,6 +341,8 @@ export class SlackProvider implements IProvider {
     let historyCacheHits = 0;
     const requestCounts: Record<string, number> = {};
     const incompleteReasons = new Set<string>();
+    // Global rate-limit safety budget: cap HTTP calls at 80 requests per poll cycle
+    // and honor HTTP 429 Retry-After with a minimum 60s backoff floor to avoid workspace-wide API bans.
     const request = async (url: string, timeout: number): Promise<any> => {
       const endpoint = new URL(url).pathname.split('/').pop() || 'unknown';
       if (rateLimited || Date.now() < this.rateLimitedUntil) {
@@ -380,6 +390,9 @@ export class SlackProvider implements IProvider {
         if (this.mpimMissingScopeUntil > Date.now()) missingScopes.push('mpim:read');
       } else {
         let discoveryComplete = true;
+        // Discover 1:1 ('im') and multi-party ('mpim') DMs with independent pagination cursors.
+        // If 'mpim:read' scope is missing, back off MPIM queries for CHANNEL_DISCOVERY_CACHE_MS (5 min)
+        // so standard 1:1 DMs continue functioning unimpeded.
         for (const type of ['im', 'mpim'] as const) {
           if (type === 'mpim' && this.mpimMissingScopeUntil > Date.now()) {
             missingScopes.push('mpim:read');
@@ -527,7 +540,9 @@ export class SlackProvider implements IProvider {
         });
       }
 
-      // 2. Fetch unread mentions via search.messages
+      // 2. Fetch unread mentions via search.messages. Requires a user token ('xoxp-');
+      // we explicitly filter out DM/MPIM channels (ID prefix 'D' or flags) to prevent
+      // double-counting messages already tallied in the DM summary above.
       const topMentions: Array<{ channel: string }> = [];
       let totalMentions = 0;
 
@@ -579,6 +594,8 @@ export class SlackProvider implements IProvider {
         if (missingGroupsScope) missingScopes.push('groups:read');
 
         if (!userChannels) {
+          // Request both public and private channels. If private channels fail due to missing
+          // 'groups:read' scope, gracefully degrade to querying only 'public_channel'.
           let channelTypes = 'public_channel,private_channel';
           const fetchChannels = async (cursor = '') => {
             const params = new URLSearchParams({ types: channelTypes, exclude_archived: 'true', limit: '100' });

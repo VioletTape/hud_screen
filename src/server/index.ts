@@ -18,6 +18,8 @@ import {
 } from './monitor.js';
 import { DashboardState, NotificationItem, ProviderResult } from '../shared/types.js';
 
+// In Single Executable Application (SEA) mode, client assets are embedded directly
+// in the executable binary via node:sea and served from memory rather than disk.
 const SEA_MODE = isSea();
 const CLIENT_DIR = path.resolve(process.cwd(), 'src/client');
 
@@ -68,6 +70,8 @@ const sseClients: Response[] = [];
 
 function broadcastState(state: DashboardState) {
   const data = `data: ${JSON.stringify(state)}\n\n`;
+  // Iterate backwards so dead SSE client connections can be pruned via splice()
+  // during iteration without skipping subsequent clients.
   for (let i = sseClients.length - 1; i >= 0; i--) {
     try {
       sseClients[i].write(data);
@@ -83,6 +87,8 @@ let refreshPending = false;
 // Keep the last GitLab result through five consecutive failed polls.
 let gitlabConsecutiveErrors = 0;
 
+// Single-flight poll latch: prevents overlapping provider fetches while queuing
+// an immediate follow-up poll if a configuration change arrives while polling is active.
 async function pollAllProviders(configRefresh = false) {
   if (isPolling) {
     if (configRefresh) refreshPending = true;
@@ -145,6 +151,8 @@ async function pollAllProviders(configRefresh = false) {
             });
           }
           if (providerData.source === 'gitlab') {
+            // Dampen transient GitLab API hiccups: preserve the last known good state for up to
+            // five consecutive failed polls (~5 minutes) before surfacing the error to the HUD.
             gitlabConsecutiveErrors = providerData.status === 'error' ? gitlabConsecutiveErrors + 1 : 0;
             if (providerData.status === 'error' && gitlabConsecutiveErrors <= 5) {
               if (latestState.providers.gitlab) providersResult.gitlab = latestState.providers.gitlab;
@@ -204,7 +212,8 @@ app.get('/api/state', (req: Request, res: Response) => {
 app.get('/api/events', (req: Request, res: Response) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
+  // Flush headers immediately to establish the SSE stream, then push current state
+  // so the connecting HUD displays data instantly without waiting for the next poll cycle.
   res.flushHeaders();
 
   // Send current state immediately

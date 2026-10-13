@@ -16,6 +16,8 @@ export interface DetectedMonitor {
   label: string;
 }
 
+// Query System.Windows.Forms.Screen rather than WMI to obtain accurate multi-monitor
+// virtual desktop coordinates (X, Y) and orientations across Windows display settings.
 export async function detectWindowsMonitors(): Promise<DetectedMonitor[]> {
   try {
     const psScript = `
@@ -42,6 +44,8 @@ export async function detectWindowsMonitors(): Promise<DetectedMonitor[]> {
     return rawList.map((m: any, idx: number) => {
       const w = Number(m.W);
       const h = Number(m.H);
+      // Match characteristic ultrawide resolutions and rotated dimensions used by 8.8" and
+      // related auxiliary bar displays (e.g., 1920x480, 1280x320, 2560x720 in landscape or portrait).
       const is88 = (w === 1920 && h === 480) || (w === 480 && h === 1920) ||
                    (w === 1280 && h === 320) || (w === 320 && h === 1280) ||
                    (w === 2560 && h === 720) || (w === 720 && h === 2560);
@@ -86,7 +90,8 @@ export async function detectWindowsMonitors(): Promise<DetectedMonitor[]> {
 
 export async function launchHUDOnMonitor(monitor: DetectedMonitor, hudUrl: string): Promise<{ success: boolean; message: string }> {
   try {
-    // We launch Microsoft Edge (or Chrome) in app kiosk mode targeted to the monitor coordinates
+    // Launch Edge in standalone app mode positioned at the monitor's coordinates.
+    // 'start' runs detached so the server process does not block on browser lifetime.
     const edgeCmd = `start msedge --new-window --app="${hudUrl}" --window-position=${monitor.x},${monitor.y} --window-size=${monitor.width},${monitor.height}`;
     
     // Execute through cmd.exe
@@ -103,6 +108,8 @@ export async function launchHUDOnMonitor(monitor: DetectedMonitor, hudUrl: strin
   }
 }
 
+// Confine the cursor to the primary display rectangle via Win32 ClipCursor, preventing
+// unintentional mouse drift onto the auxiliary dashboard display during normal desktop use.
 export async function clipMouseToMonitors(excludeMonitorIndex?: number): Promise<{ success: boolean; message: string }> {
   try {
     // If we want to clip cursor to exclude the 8.8" monitor, we find the bounding rectangle of the remaining monitors

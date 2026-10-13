@@ -75,6 +75,8 @@ export class EmailProvider implements IProvider {
     try {
       await client.connect();
       const mailboxName = cfg.mailbox || 'INBOX';
+      // RFC 3501 IMAP connections are stateful; getMailboxLock selects the mailbox and serializes
+      // commands. Always release the lock and log out in finally to prevent orphaned server-side sessions.
       const lock = await client.getMailboxLock(mailboxName);
 
       let unreadCount = 0;
@@ -82,6 +84,8 @@ export class EmailProvider implements IProvider {
       const notifications: NotificationItem[] = [];
 
       try {
+        // RFC 3501 STATUS: Retrieve atomic server-side unseen and message counts in a single round-trip
+        // without downloading flags or message sequence sets.
         const mailboxStatus = await client.status(mailboxName, { unseen: true, messages: true });
         unreadCount = mailboxStatus.unseen || 0;
         totalCount = mailboxStatus.messages || 0;
@@ -96,6 +100,7 @@ export class EmailProvider implements IProvider {
           let count = 0;
           for await (const msg of messages) {
             count++;
+            // IMAP ENVELOPE structures parse RFC 2822 headers server-side; prefer display name over raw mailbox address.
             const env = msg.envelope;
             const fromStr = env?.from?.[0]?.name || env?.from?.[0]?.address || 'Unknown Sender';
             const subject = env?.subject || '(No Subject)';
