@@ -1,12 +1,47 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { IProvider } from './base.js';
 import { ProviderResult, MetricItem, NotificationItem } from '../../shared/types.js';
-import { getConfig } from '../config.js';
+import { CONFIG_DIR, getConfig } from '../config.js';
 
 interface IMState {
   unread: number;
   updated: number;
   user: string;
   isGroup: boolean;
+}
+
+const CHANNEL_DISCOVERY_CACHE_MS = 5 * 60 * 1000;
+const DM_DISCOVERY_CACHE_MS = 90 * 1000;
+const MAX_DMS_PER_POLL = 10;
+const HISTORY_RECONCILE_MS = 15 * 60 * 1000;
+const DISCOVERY_SNAPSHOT_FILE = path.join(CONFIG_DIR, 'slack-discovery.json');
+
+interface SlackDiscoverySnapshot {
+  version: 1;
+  teamId: string;
+  userId: string;
+  dmDiscoveryExpiresAt: number;
+  mpimMissingScopeUntil: number;
+  imScanCursor: number;
+  imListCursor: string;
+  mpimListCursor: string;
+  imChannels: Array<{ id: string; updated: number; user: string; is_mpim: boolean }>;
+  historyCounts: Array<{ channelId: string; lastRead: string; latestMessageTs: string; unread: number; reconciledAt: number }>;
+  channelDiscoveryCache: {
+    key: string;
+    channels: Array<{ id: string; name: string; is_private?: boolean }>;
+    expiresAt: number;
+    missingGroupsScope: boolean;
+  } | null;
+}
+
+interface HistoryCountSnapshot {
+  lastRead: string;
+  latestMessageTs: string;
+  unread: number;
+  reconciledAt: number;
 }
 
 export class SlackProvider implements IProvider {
@@ -16,10 +51,17 @@ export class SlackProvider implements IProvider {
   private userCache: Map<string, string> = new Map();
   private imStates: Map<string, IMState> = new Map();
   private imChannels: Map<string, any> = new Map();
+  private historyCounts: Map<string, HistoryCountSnapshot> = new Map();
+  private channelDiscoveryCache: { key: string; channels: any[]; expiresAt: number; missingGroupsScope: boolean } | null = null;
   private imListCursor = '';
   private mpimListCursor = '';
   private imScanCursor = 0;
+  private dmDiscoveryExpiresAt = 0;
+  private mpimMissingScopeUntil = 0;
+  private snapshotLoadedFor = '';
+  private snapshotDirty = false;
   private rateLimitedUntil = 0;
+  private currentTeamId = '';
   private currentUserId = '';
   private currentUserName = '';
 
@@ -38,6 +80,111 @@ export class SlackProvider implements IProvider {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json; charset=utf-8',
     };
+  }
+
+  private loadDiscoverySnapshot(): void {
+    const accountKey = `${this.currentTeamId}:${this.currentUserId}`;
+    if (!this.currentUserId || this.snapshotLoadedFor === accountKey) return;
+    this.snapshotLoadedFor = accountKey;
+    this.snapshotDirty = false;
+    this.userCache.clear();
+    this.imStates.clear();
+    this.imChannels.clear();
+    this.historyCounts.clear();
+    this.imListCursor = '';
+    this.mpimListCursor = '';
+    this.imScanCursor = 0;
+    this.dmDiscoveryExpiresAt = 0;
+    this.mpimMissingScopeUntil = 0;
+    this.channelDiscoveryCache = null;
+
+    try {
+      const snapshot = JSON.parse(fs.readFileSync(DISCOVERY_SNAPSHOT_FILE, 'utf8')) as SlackDiscoverySnapshot;
+      if (snapshot.version !== 1 || snapshot.teamId !== this.currentTeamId || snapshot.userId !== this.currentUserId) return;
+
+      for (const channel of snapshot.imChannels || []) {
+        if (typeof channel.id === 'string' && channel.id) {
+          this.imChannels.set(channel.id, {
+            id: channel.id,
+            updated: Number(channel.updated) || 0,
+            user: typeof channel.user === 'string' ? channel.user : '',
+            is_mpim: Boolean(channel.is_mpim),
+          });
+        }
+      }
+      for (const item of snapshot.historyCounts || []) {
+        if (typeof item.channelId === 'string' && typeof item.lastRead === 'string' && typeof item.latestMessageTs === 'string') {
+          this.historyCounts.set(item.channelId, {
+            lastRead: item.lastRead,
+            latestMessageTs: item.latestMessageTs,
+            unread: Math.max(0, Number(item.unread) || 0),
+            reconciledAt: Number(item.reconciledAt) || 0,
+          });
+        }
+      }
+      this.imListCursor = typeof snapshot.imListCursor === 'string' ? snapshot.imListCursor : '';
+      this.mpimListCursor = typeof snapshot.mpimListCursor === 'string' ? snapshot.mpimListCursor : '';
+      this.imScanCursor = Number(snapshot.imScanCursor) || 0;
+      this.dmDiscoveryExpiresAt = Number(snapshot.dmDiscoveryExpiresAt) || 0;
+      this.mpimMissingScopeUntil = Number(snapshot.mpimMissingScopeUntil) || 0;
+
+      const cachedChannels = snapshot.channelDiscoveryCache;
+      if (cachedChannels && Array.isArray(cachedChannels.channels)) {
+        this.channelDiscoveryCache = {
+          key: cachedChannels.key,
+          channels: cachedChannels.channels.filter(channel => typeof channel.id === 'string' && typeof channel.name === 'string'),
+          expiresAt: Number(cachedChannels.expiresAt) || 0,
+          missingGroupsScope: Boolean(cachedChannels.missingGroupsScope),
+        };
+      }
+    } catch {
+      // Missing or invalid snapshots are rebuilt from Slack.
+    }
+  }
+
+  private saveDiscoverySnapshot(): void {
+    if (!this.snapshotDirty || !this.currentUserId) return;
+    const now = Date.now();
+    for (const [channelId, count] of this.historyCounts) {
+      if (now < count.reconciledAt || now - count.reconciledAt >= HISTORY_RECONCILE_MS) this.historyCounts.delete(channelId);
+    }
+    const snapshot: SlackDiscoverySnapshot = {
+      version: 1,
+      teamId: this.currentTeamId,
+      userId: this.currentUserId,
+      dmDiscoveryExpiresAt: this.dmDiscoveryExpiresAt,
+      mpimMissingScopeUntil: this.mpimMissingScopeUntil,
+      imScanCursor: this.imScanCursor,
+      imListCursor: this.imListCursor,
+      mpimListCursor: this.mpimListCursor,
+      imChannels: [...this.imChannels.values()].map(channel => ({
+        id: channel.id,
+        updated: Number(channel.updated) || 0,
+        user: channel.user || '',
+        is_mpim: Boolean(channel.is_mpim),
+      })),
+      historyCounts: [...this.historyCounts.entries()].map(([channelId, count]) => ({ channelId, ...count })),
+      channelDiscoveryCache: this.channelDiscoveryCache ? {
+        key: this.channelDiscoveryCache.key,
+        channels: this.channelDiscoveryCache.channels.map(channel => ({
+          id: channel.id,
+          name: channel.name,
+          ...(typeof channel.is_private === 'boolean' ? { is_private: channel.is_private } : {}),
+        })),
+        expiresAt: this.channelDiscoveryCache.expiresAt,
+        missingGroupsScope: this.channelDiscoveryCache.missingGroupsScope,
+      } : null,
+    };
+    const tempFile = path.join(CONFIG_DIR, `.slack-discovery-${randomUUID()}.tmp`);
+    try {
+      fs.mkdirSync(CONFIG_DIR, { recursive: true });
+      fs.writeFileSync(tempFile, JSON.stringify(snapshot), 'utf8');
+      fs.renameSync(tempFile, DISCOVERY_SNAPSHOT_FILE);
+      this.snapshotDirty = false;
+    } catch (err) {
+      try { fs.unlinkSync(tempFile); } catch {}
+      console.error('[Slack] Could not save discovery snapshot:', err);
+    }
   }
 
   async testConnection(customConfig?: { botToken?: string; userToken?: string }): Promise<{ success: boolean; message: string; details?: any }> {
@@ -60,6 +207,7 @@ export class SlackProvider implements IProvider {
       }
 
       this.currentUserId = data.user_id || '';
+      this.currentTeamId = data.team_id || '';
       this.currentUserName = data.user || '';
 
       return {
@@ -94,26 +242,44 @@ export class SlackProvider implements IProvider {
     return userId;
   }
 
-  private async countUnreadChannelMessages(channelId: string, lastRead: string, request: (url: string, timeout: number) => Promise<any>): Promise<number> {
-    let count = 0;
+  private async countUnreadChannelMessages(channelId: string, lastRead: string, request: (url: string, timeout: number) => Promise<any>): Promise<{ count: number; cacheHit: boolean }> {
+    const now = Date.now();
+    const cached = this.historyCounts.get(channelId);
+    const cacheHit = Boolean(cached && cached.lastRead === lastRead &&
+      now >= cached.reconciledAt && now - cached.reconciledAt < HISTORY_RECONCILE_MS &&
+      Number(cached.latestMessageTs) >= Number(lastRead));
+    const oldest = cacheHit ? cached!.latestMessageTs : lastRead;
+    let newUnread = 0;
+    let latestMessageTs = oldest;
     let cursor = '';
     let pages = 0;
 
     do {
-      const params = new URLSearchParams({ channel: channelId, oldest: lastRead, limit: '100' });
+      const params = new URLSearchParams({ channel: channelId, oldest, limit: '100' });
       if (cursor) params.set('cursor', cursor);
       const data = await request(`https://slack.com/api/conversations.history?${params}`, 6000);
       if (!data.ok) throw new Error(data.error || 'Slack history query failed');
 
-      count += (data.messages || []).filter((message: any) =>
-        Number(message.ts) > Number(lastRead) && (!this.currentUserId || message.user !== this.currentUserId)
-      ).length;
+      for (const message of data.messages || []) {
+        const messageTs = Number(message.ts);
+        if (messageTs > Number(latestMessageTs)) latestMessageTs = String(message.ts);
+        if (messageTs > Number(lastRead) && (!cacheHit || messageTs > Number(cached!.latestMessageTs)) &&
+            (!this.currentUserId || message.user !== this.currentUserId)) newUnread++;
+      }
       cursor = data.response_metadata?.next_cursor || '';
       pages++;
     } while (cursor && pages < 3);
     if (cursor) throw new Error('Slack history page limit reached');
 
-    return count;
+    const count = cacheHit ? cached!.unread + newUnread : newUnread;
+    this.historyCounts.set(channelId, {
+      lastRead,
+      latestMessageTs,
+      unread: count,
+      reconciledAt: cacheHit ? cached!.reconciledAt : now,
+    });
+    this.snapshotDirty = true;
+    return { count, cacheHit };
   }
 
   private async resolveGroupName(channelId: string, request: (url: string, timeout: number) => Promise<any>, missingScopes: string[]): Promise<string> {
@@ -162,16 +328,24 @@ export class SlackProvider implements IProvider {
     let requestCount = 0;
     let rateLimited = false;
     let requestLimited = false;
+    let dmDiscoveryCacheHit = false;
+    let channelDiscoveryCacheHit = false;
+    let historyCacheHits = 0;
+    const requestCounts: Record<string, number> = {};
+    const incompleteReasons = new Set<string>();
     const request = async (url: string, timeout: number): Promise<any> => {
+      const endpoint = new URL(url).pathname.split('/').pop() || 'unknown';
       if (rateLimited || Date.now() < this.rateLimitedUntil) {
         rateLimited = true;
         throw new Error('rate_limited');
       }
       if (requestCount >= 80) {
         requestLimited = true;
+        incompleteReasons.add(`80-request limit before ${endpoint}`);
         throw new Error('Slack request limit reached');
       }
       requestCount++;
+      requestCounts[endpoint] = (requestCounts[endpoint] || 0) + 1;
       const resp = await fetch(url, { headers, signal: AbortSignal.timeout(timeout) });
       if (resp.status === 429) {
         rateLimited = true;
@@ -193,40 +367,65 @@ export class SlackProvider implements IProvider {
           const authData = await request('https://slack.com/api/auth.test', 5000);
           if (authData.ok) {
             this.currentUserId = authData.user_id;
+            this.currentTeamId = authData.team_id || '';
             this.currentUserName = authData.user;
           }
         } catch (_) {}
       }
+      this.loadDiscoverySnapshot();
 
       // 1. Discover both individual and group DMs, with independent pagination.
-      for (const type of ['im', 'mpim'] as const) {
-        try {
-          const params = new URLSearchParams({ types: type, exclude_archived: 'true', limit: '200' });
-          const cursor = type === 'im' ? this.imListCursor : this.mpimListCursor;
-          if (cursor) params.set('cursor', cursor);
-          const data = await request(`https://slack.com/api/conversations.list?${params}`, 8000);
-          if (!data.ok) {
-            if (type === 'mpim' && data.error === 'missing_scope') {
-              missingScopes.push('mpim:read');
-              continue;
-            }
-            throw new Error(`Slack ${type.toUpperCase()} error: ${data.error}`);
+      if (this.dmDiscoveryExpiresAt > Date.now() && !this.imListCursor && !this.mpimListCursor) {
+        dmDiscoveryCacheHit = true;
+        if (this.mpimMissingScopeUntil > Date.now()) missingScopes.push('mpim:read');
+      } else {
+        let discoveryComplete = true;
+        for (const type of ['im', 'mpim'] as const) {
+          if (type === 'mpim' && this.mpimMissingScopeUntil > Date.now()) {
+            missingScopes.push('mpim:read');
+            continue;
           }
-          if (type === 'im') this.imListCursor = data.response_metadata?.next_cursor || '';
-          else this.mpimListCursor = data.response_metadata?.next_cursor || '';
-          for (const im of data.channels || []) {
-            if (im.is_user_deleted || im.is_archived) {
-              this.imChannels.delete(im.id);
-              this.imStates.delete(im.id);
-            } else {
-              this.imChannels.set(im.id, { ...im, is_mpim: type === 'mpim' });
+          try {
+            const params = new URLSearchParams({ types: type, exclude_archived: 'true', limit: '200' });
+            const cursor = type === 'im' ? this.imListCursor : this.mpimListCursor;
+            if (cursor) params.set('cursor', cursor);
+            const data = await request(`https://slack.com/api/conversations.list?${params}`, 8000);
+            if (!data.ok) {
+              if (type === 'mpim' && data.error === 'missing_scope') {
+                this.mpimMissingScopeUntil = Date.now() + CHANNEL_DISCOVERY_CACHE_MS;
+                missingScopes.push('mpim:read');
+                this.snapshotDirty = true;
+                continue;
+              }
+              throw new Error(`Slack ${type.toUpperCase()} error: ${data.error}`);
             }
+            if (type === 'im') this.imListCursor = data.response_metadata?.next_cursor || '';
+            else {
+              this.mpimListCursor = data.response_metadata?.next_cursor || '';
+              this.mpimMissingScopeUntil = 0;
+            }
+            for (const im of data.channels || []) {
+              if (im.is_user_deleted || im.is_archived) {
+                this.imChannels.delete(im.id);
+                this.imStates.delete(im.id);
+                this.historyCounts.delete(im.id);
+              } else {
+                this.imChannels.set(im.id, { ...im, is_mpim: type === 'mpim' });
+              }
+            }
+            this.snapshotDirty = true;
+          } catch (err) {
+            if (type === 'im') throw err;
+            discoveryComplete = false;
+            // Keep individual DMs available when group discovery fails.
+            requestLimited = true;
+            incompleteReasons.add(`mpim conversations.list: ${err instanceof Error ? err.message : String(err)}`);
           }
-        } catch (err) {
-          if (type === 'im') throw err;
-          // Keep individual DMs available when group discovery fails.
-          requestLimited = true;
         }
+        this.dmDiscoveryExpiresAt = discoveryComplete && !this.imListCursor && !this.mpimListCursor
+          ? Date.now() + DM_DISCOVERY_CACHE_MS
+          : 0;
+        this.snapshotDirty = true;
       }
       const allIms = [...this.imChannels.values()];
 
@@ -240,7 +439,7 @@ export class SlackProvider implements IProvider {
         inspectedIds.add(im.id);
       }
       let scanned = 0;
-      for (let i = 0; i < allIms.length && imsToInspect.length < 20; i++) {
+      for (let i = 0; i < allIms.length && imsToInspect.length < MAX_DMS_PER_POLL; i++) {
         const im = allIms[(this.imScanCursor + i) % allIms.length];
         scanned++;
         if (!inspectedIds.has(im.id)) {
@@ -248,7 +447,9 @@ export class SlackProvider implements IProvider {
           inspectedIds.add(im.id);
         }
       }
+      const previousScanCursor = this.imScanCursor;
       this.imScanCursor = (this.imScanCursor + scanned) % Math.max(1, allIms.length);
+      if (this.imScanCursor !== previousScanCursor) this.snapshotDirty = true;
 
       for (let i = 0; i < imsToInspect.length; i += 5) {
         const batch = imsToInspect.slice(i, i + 5);
@@ -262,13 +463,17 @@ export class SlackProvider implements IProvider {
               if (isGroup && ch.unread_count_display === undefined && ch.unread_count === undefined) {
                 if (!ch.last_read) {
                   requestLimited = true;
+                  incompleteReasons.add('mpim conversations.info omitted last_read');
                   return;
                 }
                 try {
-                  unread = await this.countUnreadChannelMessages(im.id, ch.last_read, request);
+                  const historyResult = await this.countUnreadChannelMessages(im.id, ch.last_read, request);
+                  unread = historyResult.count;
+                  if (historyResult.cacheHit) historyCacheHits++;
                 } catch (err: any) {
                   if (err.message === 'missing_scope') missingScopes.push('mpim:history');
                   requestLimited = true;
+                  incompleteReasons.add(`mpim conversations.history: ${err.message || String(err)}`);
                   return;
                 }
               }
@@ -361,35 +566,55 @@ export class SlackProvider implements IProvider {
       const unavailableTrackedChannels = new Set<string>();
 
       try {
-        // Try to fetch public & private channels
-        let channelTypes = 'public_channel,private_channel';
-        const fetchChannels = async (cursor = '') => {
-          const params = new URLSearchParams({ types: channelTypes, exclude_archived: 'true', limit: '100' });
-          if (cursor) params.set('cursor', cursor);
-          return await request(`https://slack.com/api/users.conversations?${params}`, 6000);
-        };
+        const channelCacheKey = JSON.stringify(trackedChannels);
+        const cachedChannelDiscovery = this.channelDiscoveryCache?.key === channelCacheKey && this.channelDiscoveryCache.expiresAt > Date.now()
+          ? this.channelDiscoveryCache
+          : null;
+        channelDiscoveryCacheHit = Boolean(cachedChannelDiscovery);
+        let userChannels = cachedChannelDiscovery
+          ? cachedChannelDiscovery.channels
+          : null;
+        let missingGroupsScope = cachedChannelDiscovery?.missingGroupsScope || false;
+        if (missingGroupsScope) missingScopes.push('groups:read');
 
-        let chListData = await fetchChannels();
+        if (!userChannels) {
+          let channelTypes = 'public_channel,private_channel';
+          const fetchChannels = async (cursor = '') => {
+            const params = new URLSearchParams({ types: channelTypes, exclude_archived: 'true', limit: '100' });
+            if (cursor) params.set('cursor', cursor);
+            return await request(`https://slack.com/api/users.conversations?${params}`, 6000);
+          };
 
-        if (!chListData.ok && chListData.error === 'missing_scope') {
-          missingScopes.push('groups:read');
-          // Fall back to public channels only
-          channelTypes = 'public_channel';
-          chListData = await fetchChannels();
-        }
-
-        if (chListData.ok && chListData.channels) {
-          const userChannels: any[] = [...chListData.channels];
-          let cursor = chListData.response_metadata?.next_cursor || '';
-          while (trackedChannels.length && cursor) {
-            const foundNames = new Set(userChannels.map(ch => ch.name?.toLowerCase()));
-            if (Array.from(trackedChannelNames).every(name => foundNames.has(name))) break;
-            chListData = await fetchChannels(cursor);
-            if (!chListData.ok || !chListData.channels) break;
-            userChannels.push(...chListData.channels);
-            cursor = chListData.response_metadata?.next_cursor || '';
+          let chListData = await fetchChannels();
+          if (!chListData.ok && chListData.error === 'missing_scope') {
+            missingGroupsScope = true;
+            missingScopes.push('groups:read');
+            channelTypes = 'public_channel';
+            chListData = await fetchChannels();
           }
 
+          if (chListData.ok && chListData.channels) {
+            userChannels = [...chListData.channels];
+            let cursor = chListData.response_metadata?.next_cursor || '';
+            while (trackedChannels.length && cursor) {
+              const foundNames = new Set(userChannels.map(ch => ch.name?.toLowerCase()));
+              if (Array.from(trackedChannelNames).every(name => foundNames.has(name))) break;
+              chListData = await fetchChannels(cursor);
+              if (!chListData.ok || !chListData.channels) break;
+              userChannels.push(...chListData.channels);
+              cursor = chListData.response_metadata?.next_cursor || '';
+            }
+            this.channelDiscoveryCache = {
+              key: channelCacheKey,
+              channels: userChannels,
+              expiresAt: Date.now() + CHANNEL_DISCOVERY_CACHE_MS,
+              missingGroupsScope,
+            };
+            this.snapshotDirty = true;
+          }
+        }
+
+        if (userChannels) {
           const channelByName = new Map(userChannels.map(ch => [ch.name?.toLowerCase(), ch]));
           for (const name of trackedChannels) {
             if (!channelByName.has(name.toLowerCase())) unavailableTrackedChannels.add(name);
@@ -407,9 +632,10 @@ export class SlackProvider implements IProvider {
                   const hasUnreadCount = infoData.channel.unread_count_display !== undefined || infoData.channel.unread_count !== undefined;
                   if (trackedChannels.length && !hasUnreadCount && infoData.channel.last_read) {
                     try {
-                      const unread = await this.countUnreadChannelMessages(ch.id, infoData.channel.last_read, request);
-                      trackedChannelMessages += unread;
-                      if (unread > 0) trackedChannelUnreads.push({ channel: `#${ch.name}`, count: unread });
+                      const historyResult = await this.countUnreadChannelMessages(ch.id, infoData.channel.last_read, request);
+                      trackedChannelMessages += historyResult.count;
+                      if (historyResult.cacheHit) historyCacheHits++;
+                      if (historyResult.count > 0) trackedChannelUnreads.push({ channel: `#${ch.name}`, count: historyResult.count });
                     } catch (err: any) {
                       if (err.message === 'missing_scope') {
                         const historyScope = ch.is_private ? 'groups:history' : 'channels:history';
@@ -460,7 +686,10 @@ export class SlackProvider implements IProvider {
       if (missingScopes.includes('mpim:read')) unreadItems.push('Group DMs require mpim:read');
       if (missingScopes.includes('mpim:history')) unreadItems.push('Group DM unread counts require mpim:history');
       if (rateLimited) unreadItems.push('Slack rate limited');
-      else if (requestLimited) unreadItems.push('Slack data incomplete');
+      else if (requestLimited) {
+        const reason = incompleteReasons.values().next().value;
+        unreadItems.push(reason ? `Slack data incomplete: ${reason}` : 'Slack data incomplete');
+      }
       const status = unreadItems.length > 0 ? 'warning' : 'healthy';
       const statusMessage = unreadItems.join(' • ') || 'All caught up';
 
@@ -473,6 +702,8 @@ export class SlackProvider implements IProvider {
         timestamp: now,
         level: 'warning',
       }));
+
+      this.saveDiscoverySnapshot();
 
       const metrics: MetricItem[] = [
         {
@@ -514,6 +745,14 @@ export class SlackProvider implements IProvider {
           trackedChannelMessages,
           unavailableTrackedChannels: Array.from(unavailableTrackedChannels),
           missingScopes: Array.from(new Set(missingScopes)),
+          requestCount,
+          requestCounts,
+          incompleteReasons: Array.from(incompleteReasons),
+          historyCacheHits,
+          discoveryCache: {
+            conversations: dmDiscoveryCacheHit ? 'hit' : 'miss',
+            channels: channelDiscoveryCacheHit ? 'hit' : 'miss',
+          },
           user: this.currentUserName,
         },
       };
@@ -544,6 +783,10 @@ export class SlackProvider implements IProvider {
           topMentions: [],
           trackedChannelUnreads: [],
           missingScopes: [],
+          requestCount,
+          requestCounts,
+          incompleteReasons: Array.from(incompleteReasons),
+          historyCacheHits,
         },
       };
     }

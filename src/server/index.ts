@@ -9,7 +9,7 @@ import { EmailProvider } from './providers/email.js';
 import { CalendarProvider } from './providers/calendar.js';
 import { getMockProvidersData } from './providers/mock.js';
 import { getSystemStats } from './system-stats.js';
-import { logError } from './error-log.js';
+import { logError, logSlackPoll } from './error-log.js';
 import {
   detectWindowsMonitors,
   launchHUDOnMonitor,
@@ -127,6 +127,23 @@ async function pollAllProviders(configRefresh = false) {
       for (const res of results) {
         if (res.status === 'fulfilled') {
           const providerData = res.value;
+          if (
+            providerData.source === 'slack' &&
+            providerData.details &&
+            'requestCount' in providerData.details &&
+            typeof providerData.details.requestCount === 'number'
+          ) {
+            const details = providerData.details;
+            logSlackPoll({
+              status: providerData.status,
+              statusMessage: providerData.statusMessage,
+              requestCount: details.requestCount,
+              requestCounts: 'requestCounts' in details ? details.requestCounts : {},
+              incompleteReasons: 'incompleteReasons' in details ? details.incompleteReasons : [],
+              historyCacheHits: 'historyCacheHits' in details ? details.historyCacheHits : 0,
+              discoveryCache: 'discoveryCache' in details ? details.discoveryCache : {},
+            });
+          }
           if (providerData.source === 'gitlab') {
             gitlabConsecutiveErrors = providerData.status === 'error' ? gitlabConsecutiveErrors + 1 : 0;
             if (providerData.status === 'error' && gitlabConsecutiveErrors <= 5) {
