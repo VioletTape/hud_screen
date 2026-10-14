@@ -3,7 +3,7 @@
 /dist/
 
 # Local credentials and runtime settings
-/config/config.json
+/config/
 /.env
 /.env.*
 !/.env.example
