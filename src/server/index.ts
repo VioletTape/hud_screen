@@ -1,7 +1,22 @@
 import express, { Request, Response } from 'express';
+import fs from 'node:fs';
 import path from 'node:path';
+import tls from 'node:tls';
 import { getAsset, isSea } from 'node:sea';
 import { loadConfig, saveConfig, getSanitizedConfig, getConfig } from './config.js';
+
+for (const certPath of ['C:\\ProgramData\\Cloudflare\\installed_cert.pem', '/mnt/c/ProgramData/Cloudflare/installed_cert.pem']) {
+  if (fs.existsSync(certPath)) {
+    const cert = fs.readFileSync(certPath, 'utf-8');
+    const origCreateSecureContext = tls.createSecureContext;
+    tls.createSecureContext = (options) => {
+      const ctx = origCreateSecureContext(options);
+      ctx.context.addCACert(cert);
+      return ctx;
+    };
+    break;
+  }
+}
 import { GitLabProvider } from './providers/gitlab.js';
 import { LiteLLMProvider } from './providers/litellm.js';
 import { SlackProvider } from './providers/slack.js';
@@ -17,6 +32,9 @@ import {
   releaseMouseClip,
 } from './monitor.js';
 import { DashboardState, NotificationItem, ProviderResult } from '../shared/types.js';
+
+// node-ical uses the process timezone when a feed contains floating dates.
+process.env.TZ = 'Europe/Warsaw';
 
 // In Single Executable Application (SEA) mode, client assets are embedded directly
 // in the executable binary via node:sea and served from memory rather than disk.
@@ -140,15 +158,18 @@ async function pollAllProviders(configRefresh = false) {
             typeof providerData.details.requestCount === 'number'
           ) {
             const details = providerData.details;
+            const invalidTsOldest = details.invalidTsOldest || [];
             logSlackPoll({
               status: providerData.status,
               statusMessage: providerData.statusMessage,
               requestCount: details.requestCount,
               requestCounts: 'requestCounts' in details ? details.requestCounts : {},
               incompleteReasons: 'incompleteReasons' in details ? details.incompleteReasons : [],
+              ...(invalidTsOldest.length ? { invalidTsOldest } : {}),
               historyCacheHits: 'historyCacheHits' in details ? details.historyCacheHits : 0,
               discoveryCache: 'discoveryCache' in details ? details.discoveryCache : {},
             });
+            delete details.invalidTsOldest;
           }
           if (providerData.source === 'gitlab') {
             // Dampen transient GitLab API hiccups: preserve the last known good state for up to

@@ -11,6 +11,7 @@ Each record includes:
 - `timestamp`, `status`, and `statusMessage`
 - `requestCount` and `requestCounts`, grouped by Slack API endpoint
 - `incompleteReasons`, including the endpoint attempted after the 80-request cap or the partial-fetch condition
+- `invalidTsOldest` when Slack rejects a history request, with the conversation ID and exact `oldest` timestamp sent
 - `historyCacheHits`, the number of history fallback counts updated incrementally
 - `discoveryCache`, showing whether DM and channel discovery reused the snapshot or called Slack
 

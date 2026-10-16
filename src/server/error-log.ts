@@ -8,7 +8,8 @@ export function logError(source: string, error: unknown): void {
   const now = new Date();
   const hour = now.toISOString().slice(0, 13).replace('T', '-');
   const cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString().slice(0, 13).replace('T', '-');
-  const message = error instanceof Error ? error.stack || error.message : String(error);
+  const cause = error instanceof Error && error.cause instanceof Error ? ` [cause: ${error.cause.message}]` : '';
+  const message = error instanceof Error ? `${error.stack || error.message}${cause}` : String(error);
 
   try {
     fs.mkdirSync(LOG_DIR, { recursive: true });

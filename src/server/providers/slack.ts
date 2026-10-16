@@ -8,6 +8,7 @@ import { CONFIG_DIR, getConfig } from '../config.js';
 interface IMState {
   unread: number;
   updated: number;
+  validFrom: number;
   user: string;
   isGroup: boolean;
 }
@@ -15,6 +16,7 @@ interface IMState {
 const CHANNEL_DISCOVERY_CACHE_MS = 5 * 60 * 1000;
 const DM_DISCOVERY_CACHE_MS = 90 * 1000;
 const MAX_DMS_PER_POLL = 10;
+const MAX_MESSAGE_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 const HISTORY_RECONCILE_MS = 15 * 60 * 1000;
 const DISCOVERY_SNAPSHOT_FILE = path.join(CONFIG_DIR, 'slack-discovery.json');
 
@@ -28,7 +30,7 @@ interface SlackDiscoverySnapshot {
   imListCursor: string;
   mpimListCursor: string;
   imChannels: Array<{ id: string; updated: number; user: string; is_mpim: boolean }>;
-  historyCounts: Array<{ channelId: string; lastRead: string; latestMessageTs: string; unread: number; reconciledAt: number }>;
+  historyCounts: Array<{ channelId: string; lastRead: string; latestMessageTs: string; scannedFrom: string; unread: number; reconciledAt: number }>;
   channelDiscoveryCache: {
     key: string;
     channels: Array<{ id: string; name: string; is_private?: boolean }>;
@@ -40,6 +42,7 @@ interface SlackDiscoverySnapshot {
 interface HistoryCountSnapshot {
   lastRead: string;
   latestMessageTs: string;
+  scannedFrom: string;
   unread: number;
   reconciledAt: number;
 }
@@ -113,10 +116,12 @@ export class SlackProvider implements IProvider {
         }
       }
       for (const item of snapshot.historyCounts || []) {
-        if (typeof item.channelId === 'string' && typeof item.lastRead === 'string' && typeof item.latestMessageTs === 'string') {
+        if (typeof item.channelId === 'string' && typeof item.lastRead === 'string' &&
+            typeof item.latestMessageTs === 'string' && typeof item.scannedFrom === 'string') {
           this.historyCounts.set(item.channelId, {
             lastRead: item.lastRead,
             latestMessageTs: item.latestMessageTs,
+            scannedFrom: item.scannedFrom,
             unread: Math.max(0, Number(item.unread) || 0),
             reconciledAt: Number(item.reconciledAt) || 0,
           });
@@ -247,29 +252,42 @@ export class SlackProvider implements IProvider {
 
   // When bot tokens or MPIMs lack 'unread_count_display', we walk conversations.history
   // backwards from the current cursor/lastRead. Results are cached and reconciled incrementally
-  // up to HISTORY_RECONCILE_MS to avoid paging through high-volume channels on every poll.
-  private async countUnreadChannelMessages(channelId: string, lastRead: string, request: (url: string, timeout: number) => Promise<any>): Promise<{ count: number; cacheHit: boolean }> {
+  // up to HISTORY_RECONCILE_MS; every query starts no earlier than the two-week cutoff.
+  private async countUnreadChannelMessages(channelId: string, lastRead: string, scannedFrom: string, request: (url: string, timeout: number) => Promise<any>, invalidTsOldest: Array<{ channelId: string; oldest: string }>): Promise<{ count: number; cacheHit: boolean }> {
     const now = Date.now();
+    const lastReadTs = Number(lastRead);
+    const hasLastRead = Number.isFinite(lastReadTs) && lastReadTs > 0;
+    const scanFloor = Math.max(Number(scannedFrom), hasLastRead ? lastReadTs : 0);
+    const scanStart = String(scanFloor);
     const cached = this.historyCounts.get(channelId);
     const cacheHit = Boolean(cached && cached.lastRead === lastRead &&
+      cached.scannedFrom === scanStart &&
       now >= cached.reconciledAt && now - cached.reconciledAt < HISTORY_RECONCILE_MS &&
-      Number(cached.latestMessageTs) >= Number(lastRead));
-    const oldest = cacheHit ? cached!.latestMessageTs : lastRead;
+      Number(cached.latestMessageTs) >= (hasLastRead ? lastReadTs : 0));
+    // Slack's zero last_read is an unset cursor; conversations.history rejects it as oldest.
+    const oldest = cacheHit && Number(cached!.latestMessageTs) > 0
+      ? cached!.latestMessageTs
+      : scanStart;
     let newUnread = 0;
     let latestMessageTs = oldest;
     let cursor = '';
     let pages = 0;
 
     do {
-      const params = new URLSearchParams({ channel: channelId, oldest, limit: '100' });
+      const params = new URLSearchParams({ channel: channelId, limit: '100' });
+      if (oldest) params.set('oldest', oldest);
       if (cursor) params.set('cursor', cursor);
       const data = await request(`https://slack.com/api/conversations.history?${params}`, 6000);
-      if (!data.ok) throw new Error(data.error || 'Slack history query failed');
+      if (!data.ok) {
+        if (data.error === 'invalid_ts_oldest') invalidTsOldest.push({ channelId, oldest });
+        throw new Error(data.error || 'Slack history query failed');
+      }
 
       for (const message of data.messages || []) {
         const messageTs = Number(message.ts);
         if (messageTs > Number(latestMessageTs)) latestMessageTs = String(message.ts);
-        if (messageTs > Number(lastRead) && (!cacheHit || messageTs > Number(cached!.latestMessageTs)) &&
+        if (messageTs >= Number(scannedFrom) && messageTs > (hasLastRead ? lastReadTs : 0) &&
+            (!cacheHit || messageTs > Number(cached!.latestMessageTs)) &&
             (!this.currentUserId || message.user !== this.currentUserId)) newUnread++;
       }
       cursor = data.response_metadata?.next_cursor || '';
@@ -281,6 +299,7 @@ export class SlackProvider implements IProvider {
     this.historyCounts.set(channelId, {
       lastRead,
       latestMessageTs,
+      scannedFrom: scanStart,
       unread: count,
       reconciledAt: cacheHit ? cached!.reconciledAt : now,
     });
@@ -318,7 +337,11 @@ export class SlackProvider implements IProvider {
   }
 
   async fetchData(): Promise<ProviderResult> {
-    const now = new Date().toISOString();
+    const pollStartedAt = Date.now();
+    const now = new Date(pollStartedAt).toISOString();
+    // Round the moving two-week boundary forward to the next reconciliation window.
+    const recentMessageCutoffMs = Math.ceil(pollStartedAt / HISTORY_RECONCILE_MS) * HISTORY_RECONCILE_MS - MAX_MESSAGE_AGE_MS;
+    const recentMessageCutoff = String(recentMessageCutoffMs / 1000);
     if (!this.isEnabled()) {
       return {
         source: this.name,
@@ -341,6 +364,7 @@ export class SlackProvider implements IProvider {
     let historyCacheHits = 0;
     const requestCounts: Record<string, number> = {};
     const incompleteReasons = new Set<string>();
+    const invalidTsOldest: Array<{ channelId: string; oldest: string }> = [];
     // Global rate-limit safety budget: cap HTTP calls at 80 requests per poll cycle
     // and honor HTTP 429 Retry-After with a minimum 60s backoff floor to avoid workspace-wide API bans.
     const request = async (url: string, timeout: number): Promise<any> => {
@@ -474,26 +498,26 @@ export class SlackProvider implements IProvider {
               const isGroup = Boolean(ch.is_mpim || im.is_mpim);
               // Slack's display count is authoritative, including 0; the legacy count can stay stale.
               let unread = ch.unread_count_display ?? ch.unread_count ?? 0;
-              if (isGroup && ch.unread_count_display === undefined && ch.unread_count === undefined) {
-                if (!ch.last_read) {
-                  requestLimited = true;
-                  incompleteReasons.add('mpim conversations.info omitted last_read');
-                  return;
-                }
+              const hasUnreadCount = ch.unread_count_display !== undefined || ch.unread_count !== undefined;
+              const lastRead = String(ch.last_read || '');
+              const lastReadTs = Number(lastRead);
+              const lastReadIsRecent = Number.isFinite(lastReadTs) && lastReadTs >= Number(recentMessageCutoff);
+              if (!hasUnreadCount || (unread > 0 && !lastReadIsRecent)) {
                 try {
-                  const historyResult = await this.countUnreadChannelMessages(im.id, ch.last_read, request);
+                  const historyResult = await this.countUnreadChannelMessages(im.id, lastRead, recentMessageCutoff, request, invalidTsOldest);
                   unread = historyResult.count;
                   if (historyResult.cacheHit) historyCacheHits++;
                 } catch (err: any) {
-                  if (err.message === 'missing_scope') missingScopes.push('mpim:history');
+                  if (err.message === 'missing_scope') missingScopes.push(isGroup ? 'mpim:history' : 'im:history');
                   requestLimited = true;
-                  incompleteReasons.add(`mpim conversations.history: ${err.message || String(err)}`);
+                  incompleteReasons.add(`${isGroup ? 'mpim' : 'im'} conversations.history: ${err.message || String(err)}`);
                   return;
                 }
               }
               this.imStates.set(im.id, {
                 unread,
                 updated: im.updated || 0,
+                validFrom: Math.max(Number.isFinite(lastReadTs) ? lastReadTs : 0, Number(recentMessageCutoff)),
                 user: ch.user || im.user || '',
                 isGroup,
               });
@@ -509,6 +533,10 @@ export class SlackProvider implements IProvider {
       let totalUnreadDMs = 0;
 
       for (const [id, state] of this.imStates.entries()) {
+        if (state.validFrom < Number(recentMessageCutoff)) {
+          this.imStates.delete(id);
+          continue;
+        }
         if (state.unread > 0) {
           totalUnreadDMs += state.unread;
           unreadImList.push({ id, ...state });
@@ -547,13 +575,19 @@ export class SlackProvider implements IProvider {
       let totalMentions = 0;
 
       try {
-        const searchData = await request('https://slack.com/api/search.messages?query=to%3Ame%20is%3Aunread&sort=timestamp&sort_dir=desc&count=100', 6000);
+        const afterDate = new Date(recentMessageCutoffMs).toISOString().slice(0, 10);
+        const searchParams = new URLSearchParams({
+          query: `to:me is:unread after:${afterDate}`,
+          sort: 'timestamp',
+          sort_dir: 'desc',
+          count: '100',
+        });
+        const searchData = await request(`https://slack.com/api/search.messages?${searchParams}`, 6000);
 
         if (searchData.ok && searchData.messages) {
           const matches: any[] = searchData.messages.matches || [];
-          const channelMatches = matches.filter((m: any) =>
-            m.channel && !m.channel.is_im && !m.channel.is_mpim && !m.channel.id?.startsWith('D')
-          );
+          const channelMatches = matches.filter((m: any) => Number(m.ts) >= Number(recentMessageCutoff) &&
+            m.channel && !m.channel.is_im && !m.channel.is_mpim && !m.channel.id?.startsWith('D'));
           totalMentions = channelMatches.length;
           const seenChannels = new Set<string>();
 
@@ -648,9 +682,13 @@ export class SlackProvider implements IProvider {
                 const infoData = await request(`https://slack.com/api/conversations.info?channel=${ch.id}`, 4000);
                 if (infoData.ok && infoData.channel) {
                   const hasUnreadCount = infoData.channel.unread_count_display !== undefined || infoData.channel.unread_count !== undefined;
-                  if (trackedChannels.length && !hasUnreadCount && infoData.channel.last_read) {
+                  const channelUnread = infoData.channel.unread_count_display ?? infoData.channel.unread_count ?? 0;
+                  const channelLastRead = String(infoData.channel.last_read || '');
+                  const channelLastReadTs = Number(channelLastRead);
+                  const channelLastReadIsRecent = Number.isFinite(channelLastReadTs) && channelLastReadTs >= Number(recentMessageCutoff);
+                  if (trackedChannels.length && (!hasUnreadCount || (channelUnread > 0 && !channelLastReadIsRecent))) {
                     try {
-                      const historyResult = await this.countUnreadChannelMessages(ch.id, infoData.channel.last_read, request);
+                      const historyResult = await this.countUnreadChannelMessages(ch.id, channelLastRead, recentMessageCutoff, request, invalidTsOldest);
                       trackedChannelMessages += historyResult.count;
                       if (historyResult.cacheHit) historyCacheHits++;
                       if (historyResult.count > 0) trackedChannelUnreads.push({ channel: `#${ch.name}`, count: historyResult.count });
@@ -670,7 +708,7 @@ export class SlackProvider implements IProvider {
                     return;
                   }
                   // Slack's display count is authoritative, including 0; the legacy count can stay stale.
-                  const unread = infoData.channel.unread_count_display ?? infoData.channel.unread_count ?? 0;
+                  const unread = channelUnread;
                   if (trackedChannels.length) {
                     trackedChannelMessages += unread;
                     if (unread > 0) trackedChannelUnreads.push({ channel: `#${ch.name}`, count: unread });
@@ -767,6 +805,7 @@ export class SlackProvider implements IProvider {
           requestCount,
           requestCounts,
           incompleteReasons: Array.from(incompleteReasons),
+          invalidTsOldest,
           historyCacheHits,
           discoveryCache: {
             conversations: dmDiscoveryCacheHit ? 'hit' : 'miss',
@@ -805,6 +844,7 @@ export class SlackProvider implements IProvider {
           requestCount,
           requestCounts,
           incompleteReasons: Array.from(incompleteReasons),
+          invalidTsOldest,
           historyCacheHits,
         },
       };

@@ -106,7 +106,7 @@ export class LiteLLMProvider implements IProvider {
         lastError = `HTTP ${res.status} ${res.statusText}${text ? ': ' + text.slice(0, 100) : ''}`;
       }
     } catch (e: any) {
-      lastError = e.message || String(e);
+      lastError = e?.cause?.message ? `${e.message} (${e.cause.message})` : (e.message || String(e));
     }
 
     // Attempt 2: If key is a standard API key (starts with sk-), try GET /key/info
@@ -134,7 +134,7 @@ export class LiteLLMProvider implements IProvider {
         }
         lastStatusCode = res.status;
       } catch (e: any) {
-        lastError = e.message || String(e);
+        lastError = e?.cause?.message ? `${e.message} (${e.cause.message})` : (e.message || String(e));
       }
     }
 
@@ -464,11 +464,12 @@ export class LiteLLMProvider implements IProvider {
         notifications,
       };
     } catch (err: any) {
+      const detail = err?.cause?.message ? `${err.message} (${err.cause.message})` : (err.message || String(err));
       return {
         source: this.name,
         displayName: this.displayName,
         status: 'error',
-        statusMessage: `Error: ${err.message || String(err)}`,
+        statusMessage: `Error: ${detail}`,
         lastUpdated: now,
         metrics: [
           { key: 'error', label: 'Status', value: 'Offline', status: 'bad' },
@@ -478,7 +479,7 @@ export class LiteLLMProvider implements IProvider {
             id: `llm-err-${Date.now()}`,
             source: 'litellm',
             title: 'LiteLLM Connection Error',
-            subtitle: err.message || 'Could not fetch key info',
+            subtitle: detail || 'Could not fetch key info',
             timestamp: now,
             level: 'critical',
           },
