@@ -10,6 +10,7 @@ internal sealed class HudForm : Form
   private readonly System.Windows.Forms.Timer retryTimer = new() { Interval = 2000 };
   private readonly NotifyIcon trayIcon = new();
   private readonly ContextMenuStrip trayMenu = new();
+  private readonly Icon? appIcon;
   private LaunchOptions options;
 
   public HudForm(LaunchOptions options)
@@ -24,10 +25,22 @@ internal sealed class HudForm : Form
     Controls.Add(browser);
     PlaceOnMonitor();
 
+    try
+    {
+      appIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+    }
+    catch
+    {
+      // Fall back to SystemIcons.Application if extraction fails
+    }
+
+    if (appIcon != null)
+      Icon = appIcon;
+
     trayMenu.Items.Add("Show HUD", null, (_, _) => ShowHud());
     trayMenu.Items.Add("Exit HUD", null, (_, _) => Close());
     trayIcon.Text = Text;
-    trayIcon.Icon = SystemIcons.Application;
+    trayIcon.Icon = appIcon ?? SystemIcons.Application;
     trayIcon.ContextMenuStrip = trayMenu;
     trayIcon.DoubleClick += (_, _) => ShowHud();
     trayIcon.Visible = true;
@@ -49,6 +62,7 @@ internal sealed class HudForm : Form
     {
       trayIcon.Visible = false;
       trayIcon.Dispose();
+      appIcon?.Dispose();
       trayMenu.Dispose();
       retryTimer.Dispose();
     }
