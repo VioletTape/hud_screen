@@ -43,9 +43,24 @@ async function getCpuUsage(): Promise<number | null> {
   return total > 0 ? Math.max(0, Math.min(100, (1 - idle / total) * 100)) : null;
 }
 
-// Query GPU utilization via nvidia-smi without spawning PowerShell/WMI.
+// Use the Windows 3D engine counter to distinguish graphics use from GPU compute.
 async function getGpuUsage(): Promise<number | null> {
   try {
+    if (process.platform === 'win32') {
+      const command =
+        "$samples = (Get-Counter -Counter '\\GPU Engine(*)\\Utilization Percentage' -ErrorAction Stop).CounterSamples | Where-Object { $_.InstanceName -match 'engtype_3D' }; " +
+        "$loads = $samples | Group-Object { $_.InstanceName -replace '^pid_\\d+_', '' } | ForEach-Object { ($_.Group | Measure-Object -Property CookedValue -Sum).Sum }; " +
+        "$usage = ($loads | Measure-Object -Maximum).Maximum; if ($null -ne $usage) { $usage.ToString([Globalization.CultureInfo]::InvariantCulture) }";
+      const { stdout } = await execFileAsync(
+        'powershell.exe',
+        ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', command],
+        { timeout: 5000, windowsHide: true },
+      );
+      const output = stdout.trim();
+      const usage = Number(output);
+      return output && Number.isFinite(usage) ? Math.max(0, Math.min(100, usage)) : null;
+    }
+
     const { stdout } = await execFileAsync(
       'nvidia-smi',
       ['--query-gpu=utilization.gpu', '--format=csv,noheader,nounits'],
@@ -68,7 +83,7 @@ export async function getSystemStats(): Promise<ProviderResult> {
   const metrics = [
     { key: 'cpu', label: 'CPU', value: format(cpu) },
     { key: 'memory', label: 'MEM', value: format(memory) },
-    { key: 'gpu', label: 'GPU', value: format(gpu) },
+    { key: 'gpu', label: process.platform === 'win32' ? '3D GPU' : 'GPU', value: format(gpu) },
   ];
 
   return {
