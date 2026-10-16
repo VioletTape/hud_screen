@@ -30,7 +30,6 @@ timeout /t 3 /nobreak >nul
 :: Open settings on primary screen
 start http://localhost:3888/settings
 
-:: Launch HUD onto the secondary screen
-powershell.exe -ExecutionPolicy Bypass -File scripts\launch-hud.ps1
+:: The backend launches the native HUD once it is listening.
 
 echo Control Panel is up and running!

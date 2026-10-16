@@ -1,6 +1,9 @@
 # Dependencies and generated builds
 /node_modules/
 /dist/
+**/bin/
+**/obj/
+*.WebView2/
 
 # Local credentials and runtime settings
 /config/

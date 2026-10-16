@@ -25,6 +25,7 @@ import { CalendarProvider } from './providers/calendar.js';
 import { getMockProvidersData } from './providers/mock.js';
 import { getSystemStats } from './system-stats.js';
 import { logError, logSlackPoll } from './error-log.js';
+import { launchNativeHUD } from './native-hud.js';
 import {
   detectWindowsMonitors,
   launchHUDOnMonitor,
@@ -344,4 +345,10 @@ app.listen(PORT, '127.0.0.1', () => {
   console.log(`   HUD View (for 8.8" screen):    http://localhost:${PORT}/`);
   console.log(`   Settings & Auth (main screen): http://localhost:${PORT}/settings`);
   console.log(`=======================================================`);
+  if (process.env.HUD_AUTO_LAUNCH !== '0' && (process.platform === 'win32' || process.env.WSL_DISTRO_NAME)) {
+    void launchNativeHUD(`http://localhost:${PORT}/`).then(result => {
+      if (result.success) console.log(`[HUD] ${result.message}`);
+      else console.warn(`[HUD] ${result.message}`);
+    });
+  }
 });

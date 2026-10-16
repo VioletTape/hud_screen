@@ -145,17 +145,13 @@ async function loadMonitors() {
     detectedMonitors = await res.json();
 
     select.innerHTML = '';
-    let defaultIndex = 0;
+    const defaultMonitor = detectedMonitors[2] || detectedMonitors.find(m => m.isPrimary) || detectedMonitors[0];
 
-    detectedMonitors.forEach((m, idx) => {
+    detectedMonitors.forEach(m => {
       const opt = document.createElement('option');
       opt.value = m.index;
       opt.textContent = m.label;
-      // Auto-select the 8.8" ultrawide bar display (1920x480 / 480x1920) if detected.
-      if (m.isLikely88Inch) {
-        opt.selected = true;
-        defaultIndex = m.index;
-      }
+      opt.selected = m.index === defaultMonitor.index;
       select.appendChild(opt);
     });
 

@@ -31,12 +31,21 @@ When running a dedicated 8.8" display (such as a Waveshare, Wisecoco, or Turing 
 
 ## ⚡ Quick Start
 
-### 1. Start the Server
-From WSL or a Windows terminal:
+### 1. Build the Native HUD and Start the Server
+Install the .NET 10 SDK and Microsoft Edge WebView2 Runtime on Windows. From a Windows terminal in this repository:
 ```bash
 npm install
+npm run build:hud
 npm start
 ```
+
+The backend opens the WinForms/WebView2 HUD after it starts listening. The borderless window fills `Screen.AllScreens[2]` (the third display), falling back to the primary display when fewer than three displays are connected. Browser zoom and browser profiles are separate from the native HUD; HUD zoom is fixed at 133%. The existing display scale setting still controls the HUD layout.
+
+The self-contained native build, including its .NET dependencies, lives in `dist/windows/hud/`. WebView2 stores its profile beside `ControlPanel.Hud.exe` in `ControlPanel.Hud.exe.WebView2/`. Rebuild with `npm run build:hud` after changing C# code; close the HUD first so its executable is not locked. The WebView2 Runtime is installed separately on Windows.
+
+`npm run dev` also opens the native HUD and reuses the existing window after backend restarts. To run only the backend, set `HUD_AUTO_LAUNCH=0` before starting it. WSL startup also attempts to launch the Windows executable through WSL interop; native Windows startup is recommended.
+
+For the packaged backend, run `npm run build:hud` and `npm run build:exe`, then use `scripts/start-backend.ps1` or run `dist/windows/ControlPanel.exe`. Keep the `hud` folder beside the backend executable; it launches automatically too. `scripts/start.bat` starts the source backend and opens Settings.
 
 ### 2. Configure Credentials (on your main screen)
 Open your browser on your main monitor:
@@ -46,9 +55,10 @@ http://localhost:3888/settings
 - **Demo Mode**: Enabled by default so you can immediately see realistic animations, counters, and alerts before entering credentials.
 - **Test Connections**: Click "Test Connection" next to GitLab, LiteLLM, Slack, or Email to verify credentials instantly.
 
-### 3. Launch onto the 8.8" Screen
-- In the Settings panel, click **"🚀 Launch on Display"** (or run `powershell.exe -File scripts/launch-hud.ps1`).
-- The script automatically scans all connected monitors, finds the 8.8" screen, and opens a borderless, chromeless Edge kiosk window targeted directly to its coordinates.
+### 3. Move or Reopen the Native HUD
+- In Settings, select a monitor and click **"🚀 Launch on Display"** to open or move the existing native window.
+- To launch manually, run `powershell.exe -File scripts/launch-hud.ps1`. Use `-MonitorIndex 2` for the third display (indices start at zero) and optionally `-Url http://localhost:3888/` for another backend port.
+- The HUD is hidden from the Windows taskbar and provides a system tray icon: double-click it or choose **Show HUD** to bring the window forward; choose **Exit HUD** to close it. Closing the HUD leaves the backend running. Reopen it through Settings or the launch script. If the backend is temporarily unavailable, the HUD retries loading it.
 
 ---
 
@@ -102,13 +112,12 @@ In Windows **Settings → System → Display**:
 - Drag the 8.8" display so it only touches the primary monitor by a single corner diagonally.
 - Because monitors only touch at 1 pixel, your cursor will virtually never cross over accidentally during normal desktop usage.
 
-### Method 3: In-HUD Cursor Concealment
-The HUD webpage includes:
+### HUD Mouse Pointer
+The HUD displays the normal mouse pointer. Text selection remains disabled with:
 ```css
-cursor: none !important;
 user-select: none;
 ```
-Even if the mouse cursor does enter the 8.8" viewport, the pointer remains completely invisible and text cannot be accidentally highlighted.
+Use the mouse lock controls above if you want to keep the pointer on your primary display.
 
 ---
 

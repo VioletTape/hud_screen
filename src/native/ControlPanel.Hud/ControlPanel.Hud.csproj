@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <RestoreSources>https://api.nuget.org/v3/index.json</RestoreSources>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
+  </ItemGroup>
+  <!-- WebView2 also adds WPF assemblies to WinForms projects; exclude that unused UI integration. -->
+  <Target Name="RemoveUnusedWebView2WpfReference" BeforeTargets="ResolveAssemblyReferences">
+    <ItemGroup>
+      <Reference Remove="@(Reference)" Condition="$([System.String]::Copy('%(Filename)').StartsWith('Microsoft.Web.WebView2.Wpf'))" />
+    </ItemGroup>
+  </Target>
+</Project>

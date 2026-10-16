@@ -11,6 +11,7 @@
     "start": "tsx src/server/index.ts",
     "dev": "tsx watch src/server/index.ts",
     "build": "tsc",
+    "build:hud": "node scripts/build-hud.mjs",
     "build:exe": "node scripts/build-sea.mjs",
     "launch:windows": "powershell.exe -ExecutionPolicy Bypass -File scripts/launch-hud.ps1"
   },

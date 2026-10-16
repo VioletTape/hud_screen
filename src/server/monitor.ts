@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { launchNativeHUD } from './native-hud.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -89,23 +90,7 @@ export async function detectWindowsMonitors(): Promise<DetectedMonitor[]> {
 }
 
 export async function launchHUDOnMonitor(monitor: DetectedMonitor, hudUrl: string): Promise<{ success: boolean; message: string }> {
-  try {
-    // Launch Edge in standalone app mode positioned at the monitor's coordinates.
-    // 'start' runs detached so the server process does not block on browser lifetime.
-    const edgeCmd = `start msedge --new-window --app="${hudUrl}" --window-position=${monitor.x},${monitor.y} --window-size=${monitor.width},${monitor.height}`;
-    
-    // Execute through cmd.exe
-    await execFileAsync('cmd.exe', ['/c', edgeCmd], { timeout: 5000 });
-    return {
-      success: true,
-      message: `Launched HUD on ${monitor.device} (${monitor.width}×${monitor.height}) at (${monitor.x}, ${monitor.y})`,
-    };
-  } catch (err: any) {
-    return {
-      success: false,
-      message: `Failed to launch HUD: ${err.message || String(err)}`,
-    };
-  }
+  return launchNativeHUD(hudUrl, monitor.index);
 }
 
 // Confine the cursor to the primary display rectangle via Win32 ClipCursor, preventing
