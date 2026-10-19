@@ -29,6 +29,7 @@
   "dependencies": {
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "fflate": "^0.8.3",
     "imapflow": "^1.0.171",
     "node-ical": "^0.25.6"
   },

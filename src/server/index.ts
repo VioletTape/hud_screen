@@ -22,6 +22,7 @@ import { LiteLLMProvider } from './providers/litellm.js';
 import { SlackProvider } from './providers/slack.js';
 import { EmailProvider } from './providers/email.js';
 import { CalendarProvider } from './providers/calendar.js';
+import { TransitProvider } from './providers/transit.js';
 import { getMockProvidersData } from './providers/mock.js';
 import { getSystemStats } from './system-stats.js';
 import { logError, logSlackPoll } from './error-log.js';
@@ -74,6 +75,8 @@ const litellmProvider = new LiteLLMProvider();
 const slackProvider = new SlackProvider();
 const emailProvider = new EmailProvider();
 const calendarProvider = new CalendarProvider();
+// Transit is fetched only by an awake widget; it is outside the background poller.
+const transitProvider = new TransitProvider();
 
 // In-memory state cache
 let latestState: DashboardState = {
@@ -82,6 +85,7 @@ let latestState: DashboardState = {
   scale: getConfig().display.scale || 1.0,
   providers: {},
   recentAlerts: [],
+  transitDestinations: getConfig().transit.destinations,
 };
 
 // SSE Subscribers
@@ -206,6 +210,7 @@ async function pollAllProviders(configRefresh = false) {
       scale: cfg.display.scale,
       providers: providersResult,
       recentAlerts: allAlerts.slice(0, 10),
+      transitDestinations: getConfig().transit.destinations,
     };
 
     broadcastState(latestState);
@@ -226,6 +231,20 @@ pollAllProviders();
 setInterval(pollAllProviders, 60000); // 60 second cycle
 
 // Routes
+app.get('/api/transit/:destination', async (req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const destination = String(req.params.destination);
+  if (!getConfig().transit.destinations.some(item => item.id === destination)) {
+    return res.status(400).json({ message: 'Unknown transit destination' });
+  }
+  try {
+    return res.json(await transitProvider.fetchData(destination));
+  } catch (error) {
+    logError('Transit', error);
+    return res.status(503).json({ message: 'Wrocław transit data unavailable. Retrying…' });
+  }
+});
+
 app.get('/api/state', (req: Request, res: Response) => {
   res.json(latestState);
 });
@@ -258,6 +277,8 @@ app.get('/api/config', (req: Request, res: Response) => {
 app.post('/api/config', (req: Request, res: Response) => {
   try {
     saveConfig(req.body);
+    latestState.transitDestinations = getConfig().transit.destinations;
+    broadcastState(latestState);
     // Trigger immediate refresh with new settings
     setTimeout(() => pollAllProviders(true), 100);
     res.json({ success: true, config: getSanitizedConfig() });

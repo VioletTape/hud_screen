@@ -54,6 +54,13 @@ export const DEFAULT_CONFIG: AppConfig = {
     corporateUrl: '',
     personalUrl: '',
   },
+  transit: {
+    destinations: [
+      { id: 'port-popowice', name: 'Port Popowice', glyph: '⚓', directOnly: true },
+      { id: 'niedzwiedzia', name: 'Niedźwiedzia', glyph: '🏬', directOnly: true },
+      { id: 'dworzec-glowny', name: 'Dworzec Główny', glyph: '🚅', directOnly: false },
+    ],
+  },
 };
 
 let currentConfig: AppConfig = { ...DEFAULT_CONFIG };
@@ -77,6 +84,7 @@ export function loadConfig(): AppConfig {
         slack: { ...DEFAULT_CONFIG.slack, ...(parsed.slack || {}) },
         email: { ...DEFAULT_CONFIG.email, ...(parsed.email || {}) },
         calendar: { ...DEFAULT_CONFIG.calendar, ...(parsed.calendar || {}) },
+        transit: { ...DEFAULT_CONFIG.transit, ...(parsed.transit || {}) },
       };
     } else {
       saveConfig(DEFAULT_CONFIG);
@@ -96,6 +104,21 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+function validateTransitDestinations(value: unknown): void {
+  if (!Array.isArray(value) || value.length > 24) throw new TypeError('Use up to 24 transit destinations');
+  const ids = new Set<string>();
+  for (const destination of value) {
+    if (!isRecord(destination) || Object.keys(destination).some(key => !['id', 'name', 'glyph', 'directOnly'].includes(key)) ||
+        typeof destination.id !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(destination.id) || ids.has(destination.id) ||
+        typeof destination.name !== 'string' || !destination.name.trim() || destination.name.length > 100 ||
+        typeof destination.glyph !== 'string' || !destination.glyph.trim() || destination.glyph.length > 32 ||
+        typeof destination.directOnly !== 'boolean') {
+      throw new TypeError('Each transit destination needs a unique ID, stop name, icon, and direct-only option');
+    }
+    ids.add(destination.id);
+  }
+}
+
 // Strict runtime schema validation against DEFAULT_CONFIG prototypes and numeric bounds.
 // targetMonitorIndex is explicitly allowed as an optional display property not present in defaults.
 function validateConfigPatch(value: unknown): asserts value is Partial<AppConfig> {
@@ -110,6 +133,10 @@ function validateConfigPatch(value: unknown): asserts value is Partial<AppConfig
     if (!isRecord(fields)) throw new TypeError(`${section} must be an object`);
     const sectionDefaults = defaults[section] as Record<string, unknown>;
     for (const [field, fieldValue] of Object.entries(fields)) {
+      if (section === 'transit' && field === 'destinations') {
+        validateTransitDestinations(fieldValue);
+        continue;
+      }
       if (!Object.hasOwn(sectionDefaults, field) && !(section === 'display' && field === 'targetMonitorIndex')) {
         throw new TypeError(`Unknown configuration field: ${section}.${field}`);
       }
@@ -149,6 +176,7 @@ export function saveConfig(newConfig: unknown): AppConfig {
     slack: { ...currentConfig.slack, ...(newConfig.slack || {}) },
     email: { ...currentConfig.email, ...(newConfig.email || {}) },
     calendar: { ...currentConfig.calendar, ...(newConfig.calendar || {}) },
+    transit: { ...currentConfig.transit, ...(newConfig.transit || {}) },
   };
 
   fs.mkdirSync(CONFIG_DIR, { recursive: true });

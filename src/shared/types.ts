@@ -36,6 +36,7 @@ export interface DashboardState {
   scale: number;
   providers: Record<string, ProviderResult>;
   recentAlerts: NotificationItem[];
+  transitDestinations: TransitDestination[];
 }
 
 export interface GitLabConfig {
@@ -80,6 +81,17 @@ export interface CalendarConfig {
   personalUrl: string;
 }
 
+export interface TransitDestination {
+  id: string;
+  name: string;
+  glyph: string;
+  directOnly: boolean;
+}
+
+export interface TransitConfig {
+  destinations: TransitDestination[];
+}
+
 export interface DisplayConfig {
   orientation: 'horizontal' | 'vertical';
   targetMonitorIndex?: number;
@@ -96,4 +108,5 @@ export interface AppConfig {
   slack: SlackConfig;
   email: EmailConfig;
   calendar: CalendarConfig;
+  transit: TransitConfig;
 }

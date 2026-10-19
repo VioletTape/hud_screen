@@ -144,6 +144,116 @@ html, body {
 #card-system .metric-label { margin-top: 0; font-size: 13.75px; }
 
 .headless-card { padding: 8px 10px; }
+
+/* On-demand transit: sleeping cards contain destination buttons only. */
+#card-transit { padding: 10px 12px; }
+#card-transit [hidden] { display: none; }
+.transit-destinations { display: flex; flex-wrap: wrap; gap: 6px; }
+#card-transit button {
+  border: 1px solid var(--card-border);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-main);
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.transit-destinations button {
+  flex: 0 0 48px;
+  min-width: 0;
+  min-height: 48px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 12px !important;
+}
+.transit-destinations button > span:first-child { font-size: 24px; }
+#card-transit button[aria-pressed="true"] { border-color: var(--accent-cyan); color: var(--accent-cyan); }
+#card-transit button:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 2px; }
+.transit-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; font-size: 13px; color: var(--text-muted); }
+#transit-offline { min-height: 36px; padding: 5px 12px; }
+#transit-status { max-width: 400px; color: var(--text-muted); font-size: 11px; margin: 5px 0; }
+.transit-journey { display: flex; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--card-border); }
+.transit-line { min-width: 35px; padding: 5px; text-align: center; border-radius: 5px; background: rgba(0, 240, 255, 0.1); color: var(--accent-cyan); font: 700 22px var(--font-mono); }
+.transit-route { flex: 1; min-width: 0; max-width: 245px; font-size: 15px; }
+.transit-timing, .transit-arrival { color: var(--text-muted); font-size: 11px; overflow-wrap: anywhere; }
+.transit-leave { margin-left: auto; text-align: right; white-space: nowrap; }
+.transit-leave span { display: block; color: var(--text-muted); font-size: 11px; }
+.transit-leave strong { color: var(--accent-emerald); font: 700 24px var(--font-mono); }
+.transit-empty { padding: 8px 0; font-size: 13px; color: var(--text-muted); }
+
+/* Local countdown timer */
+#card-timer { padding: 10px 12px; }
+#card-timer [hidden] { display: none; }
+.timer-title { margin-bottom: 0; }
+#card-timer #timer-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+}
+.timer-chevron { color: var(--text-muted); }
+#timer-toggle[aria-expanded="false"] .timer-chevron { transform: rotate(-90deg); }
+#timer-content { margin-top: 8px; }
+.timer-unit {
+  color: var(--text-muted);
+  font-size: 10px;
+  margin-bottom: 6px;
+}
+.timer-presets {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+#card-timer button, #timer-minutes {
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  padding: 8px;
+  min-width: 0;
+}
+#card-timer button { cursor: pointer; touch-action: manipulation; }
+.timer-presets button { font-size: 22px; font-weight: 700; }
+#card-timer button:hover {
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+}
+#card-timer button:focus-visible, #timer-minutes:focus-visible {
+  outline: 2px solid var(--accent-cyan);
+  outline-offset: 2px;
+}
+.timer-custom { display: flex; gap: 6px; margin-top: 8px; }
+#timer-minutes { width: 0; flex: 1; user-select: text; }
+#timer-countdown {
+  width: 100%;
+  font-size: 48px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+#card-timer[data-status="warning"] #timer-countdown { color: var(--accent-amber); }
+.timer-announcement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
 #card-gitlab .metrics-row { margin: 0 0 4px; }
 #card-gitlab .gitlab-mr-feed { margin-top: 0; }
 

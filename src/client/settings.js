@@ -2,6 +2,35 @@ let activeConfig = null;
 let detectedMonitors = [];
 let isMouseLocked = false;
 
+function addTransitDestination(destination = { id: crypto.randomUUID(), name: '', glyph: '🚋', directOnly: true }) {
+  const row = document.createElement('div');
+  row.className = 'transit-destination-row';
+  row.dataset.id = destination.id;
+  row.innerHTML = `
+    <label class="form-group transit-stop-field">Stop name<input type="text" class="form-input transit-stop-name" required maxlength="100" placeholder="e.g. Rynek"></label>
+    <label class="form-group transit-icon-field">Icon<input type="text" class="form-input transit-stop-glyph" required maxlength="32" aria-label="Destination icon"></label>
+    <label class="transit-direct-control"><input type="checkbox" class="transit-direct-only"> Direct only</label>
+    <button type="button" class="btn btn-sm btn-outline transit-remove">Remove</button>`;
+  row.querySelector('.transit-stop-name').value = destination.name;
+  row.querySelector('.transit-stop-glyph').value = destination.glyph;
+  row.querySelector('.transit-direct-only').checked = destination.directOnly;
+  row.querySelector('.transit-remove').addEventListener('click', () => {
+    row.remove();
+    updateTransitAddButton();
+  });
+  document.getElementById('transit-destination-list').append(row);
+  updateTransitAddButton();
+  return row;
+}
+
+function updateTransitAddButton() {
+  document.getElementById('btn-add-transit-destination').disabled = document.querySelectorAll('.transit-destination-row').length >= 24;
+}
+
+document.getElementById('btn-add-transit-destination').addEventListener('click', () => {
+  addTransitDestination().querySelector('.transit-stop-name').focus();
+});
+
 // Toast notification helper
 function showToast(msg, duration = 3000) {
   const toast = document.getElementById('toast-message');
@@ -36,6 +65,9 @@ async function loadConfig() {
     const res = await fetch('/api/config');
     const cfg = await res.json();
     activeConfig = cfg;
+    document.getElementById('transit-destination-list').replaceChildren();
+    (cfg.transit?.destinations || []).forEach(addTransitDestination);
+    updateTransitAddButton();
 
     // Populate toggles
     document.getElementById('mock-mode-toggle').checked = Boolean(cfg.mockMode);
@@ -295,6 +327,16 @@ document.getElementById('mock-mode-toggle').addEventListener('change', async (e)
 
 // Save All Changes
 document.getElementById('btn-save-all').addEventListener('click', async () => {
+  if (!activeConfig) { showToast('Wait for configuration to load before saving'); return; }
+  const transitDestinations = [];
+  for (const row of document.querySelectorAll('.transit-destination-row')) {
+    const name = row.querySelector('.transit-stop-name');
+    const glyph = row.querySelector('.transit-stop-glyph');
+    name.value = name.value.trim();
+    glyph.value = glyph.value.trim();
+    if (!name.reportValidity() || !glyph.reportValidity()) return;
+    transitDestinations.push({ id: row.dataset.id, name: name.value, glyph: glyph.value, directOnly: row.querySelector('.transit-direct-only').checked });
+  }
   const btn = document.getElementById('btn-save-all');
   btn.disabled = true;
 
@@ -323,6 +365,7 @@ document.getElementById('btn-save-all').addEventListener('click', async () => {
     calendar: {
       enabled: document.getElementById('calendar-enabled').checked,
     },
+    transit: { destinations: transitDestinations },
   };
 
   // Sparse patch: only send password/tokens if user typed something new so existing
@@ -360,7 +403,7 @@ document.getElementById('btn-save-all').addEventListener('click', async () => {
       showToast('✓ Configuration saved and applied successfully!');
       loadConfig(); // Refresh statuses
     } else {
-      showToast('Error saving configuration');
+      showToast(data.message || 'Error saving configuration');
     }
   } catch (err) {
     showToast(`Save error: ${err.message}`);

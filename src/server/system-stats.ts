@@ -54,7 +54,7 @@ async function getGpuUsage(): Promise<number | null> {
       const { stdout } = await execFileAsync(
         'powershell.exe',
         ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', command],
-        { timeout: 5000, windowsHide: true },
+        { timeout: 30000, windowsHide: true },
       );
       const output = stdout.trim();
       const usage = Number(output);

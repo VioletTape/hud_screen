@@ -421,6 +421,12 @@ body {
 }
 
 .calendar-secret-hint { margin: 0 0 16px; }
+.transit-settings-hint { margin: 0 0 16px; }
+.transit-destination-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 12px; }
+.transit-destination-row .form-group { display: flex; flex-direction: column; gap: 6px; margin: 0; color: var(--text-muted); font-size: 12px; font-weight: 600; }
+.transit-stop-field { flex: 1 1 180px; }
+.transit-icon-field { flex: 0 0 70px; }
+.transit-direct-control { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
 .calendar-clear-control {
   display: inline-flex !important;
   align-items: center;

@@ -14,6 +14,11 @@
 - `npm start` starts the server normally; open `http://localhost:3888/` for the HUD and `/settings` to configure it.
 - `npm run build` runs the TypeScript compiler.
 
+This checkout shares `node_modules` with the Windows HUD launcher. Run dependency
+installation and rebuilds with Windows Node.js and `npm.cmd`, including when working
+from WSL. Linux `npm install` replaces native packages such as esbuild with Linux
+binaries and breaks Windows startup. Use a separate checkout for Linux dependencies.
+
 There is no configured test or lint script. Use the build command to check TypeScript changes and manually check affected pages or integrations.
 
 ## Coding Style and Naming

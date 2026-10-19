@@ -131,8 +131,47 @@
         </div>
       </section>
 
+      <section class="hud-card" id="card-transit" aria-label="Trams from Kolista" data-mode="offline">
+        <div class="transit-destinations" role="group" aria-label="Choose a destination from Kolista">
+          <button type="button" data-destination="port-popowice" aria-pressed="false" aria-label="Port Popowice" title="Port Popowice"><span aria-hidden="true">⚓</span></button>
+          <button type="button" data-destination="niedzwiedzia" aria-pressed="false" aria-label="Niedźwiedzia" title="Niedźwiedzia"><span aria-hidden="true">🏬</span></button>
+          <button type="button" data-destination="dworzec-glowny" aria-pressed="false" aria-label="Dworzec Główny" title="Dworzec Główny"><span aria-hidden="true">🚅</span></button>
+        </div>
+        <div id="transit-online" hidden>
+          <div class="transit-toolbar"><span>Kolista · 10 min walk</span><button type="button" id="transit-offline">Offline</button></div>
+          <div id="transit-status" role="status"></div>
+          <div id="transit-departures"></div>
+        </div>
+      </section>
+
       <section class="hud-card" id="card-system" aria-label="System status: unknown">
         <div class="metrics-row" id="system-metrics"></div>
+      </section>
+
+      <section class="hud-card" id="card-timer" aria-label="Countdown timer">
+        <h2 class="card-title timer-title">
+          <button type="button" id="timer-toggle" aria-expanded="true" aria-controls="timer-content" aria-label="Collapse timer">TIMER <span class="timer-chevron" aria-hidden="true">▾</span></button>
+        </h2>
+        <div id="timer-content">
+          <div id="timer-controls">
+            <div class="timer-unit">MINUTES</div>
+            <div class="timer-presets" aria-label="Preset minutes">
+              <button type="button" data-minutes="45" aria-label="Start 45 minute timer">45</button>
+              <button type="button" data-minutes="30" aria-label="Start 30 minute timer">30</button>
+              <button type="button" data-minutes="20" aria-label="Start 20 minute timer">20</button>
+              <button type="button" data-minutes="15" aria-label="Start 15 minute timer">15</button>
+              <button type="button" data-minutes="5" aria-label="Start 5 minute timer">5</button>
+            </div>
+            <form id="timer-custom" class="timer-custom">
+              <input id="timer-minutes" type="number" min="1" max="999" step="1" required placeholder="Minutes" aria-label="Custom duration in minutes">
+              <button type="submit">Start</button>
+            </form>
+          </div>
+          <button type="button" id="timer-countdown" hidden title="Reset timer" aria-label="Reset timer">
+            <span id="timer-time" role="timer" aria-live="off">00:00</span>
+          </button>
+        </div>
+        <span id="timer-announcement" class="timer-announcement" role="status"></span>
       </section>
 
     </main>
@@ -149,5 +188,7 @@
   </div>
 
   <script src="hud.js"></script>
+  <script src="timer.js"></script>
+  <script src="transit.js"></script>
 </body>
 </html>

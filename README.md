@@ -45,6 +45,11 @@ The self-contained native build, including its .NET dependencies, lives in `dist
 
 `npm run dev` also opens the native HUD and reuses the existing window after backend restarts. To run only the backend, set `HUD_AUTO_LAUNCH=0` before starting it. WSL startup also attempts to launch the Windows executable through WSL interop; native Windows startup is recommended.
 
+Keep dependency installs on Windows for this shared checkout. Running Linux `npm install`
+from WSL replaces esbuild's Windows binary and breaks `npm start` on Windows. If that
+happens, run `npm install` from a Windows terminal in this repository to restore the
+correct package. Use a separate checkout when installing dependencies for Linux.
+
 For the packaged backend, run `npm run build:hud` and `npm run build:exe`, then use `scripts/start-backend.ps1` or run `dist/windows/ControlPanel.exe`. Keep the `hud` folder beside the backend executable; it launches automatically too. `scripts/start.bat` starts the source backend and opens Settings.
 
 ### 2. Configure Credentials (on your main screen)
@@ -63,6 +68,14 @@ http://localhost:3888/settings
 ---
 
 ## 🔌 Integrated Services
+
+### Countdown timer
+
+The Timer widget offers **45, 30, 20, 15, and 5 minute** presets and a custom
+duration of 1–999 whole minutes. Starting a timer hides the controls and shows
+only the `MM:SS` countdown. Click the countdown to cancel and choose another
+duration. At zero it stays highlighted until clicked. The timer survives page
+reloads and stays synchronized between tabs in the same browser profile.
 
 ### 1. Self-Hosted GitLab
 - **Monitors**:
@@ -130,6 +143,44 @@ Standard 8.8" displays typically use:
 You can toggle between **Horizontal** and **Vertical** modes at any time in the Settings dashboard. The layout immediately re-flows across all 4 service cards and adjusts the alert ticker.
 
 ---
+
+## Trams from Kolista
+
+The HUD transit card starts asleep, showing icon-only buttons: **⚓** for Port
+Popowice, **🏬** for Niedźwiedzia, and **🚅** for Dworzec Główny. Destination names
+remain available as tooltips and accessible labels. Click a destination to show the next three reachable
+trams from Kolista's city-bound platform **12602**, boarding lines **12, 21, 18,
+or 19**. Each countdown subtracts the **10-minute walk** from the tram's departure
+time. Trams whose walking deadline has passed disappear from the list. Beneath
+each departure time, the HUD shows only the destination arrival time.
+
+Settings → **Tram destinations** lists the saved destinations. Edit the stop name,
+icon, and **Direct only** preference, or add/remove destinations, then click
+**Save All Changes**. Saved changes appear immediately on the HUD. Stop names
+should match the Wrocław timetable. Port Popowice and Niedźwiedzia default to
+direct-only journeys; Dworzec Główny allows a transfer. New destinations start
+with Direct only enabled.
+
+When Direct only is off, journeys can include one tram transfer at the same named stop, with
+at least three minutes to change platforms (longer when platform distance requires
+it). Each first tram appears once, using its earliest-arriving direct or connecting
+journey. The search extends to the next 24 hours when fewer than three departures
+are available in the next three hours.
+
+Data comes from the [official Wrocław GTFS timetable](https://open-data.cui.wroclaw.pl/hdb/ft/6/)
+and [city vehicle positions](https://open-data.cui.wroclaw.pl/hdb/db/14?download=json).
+**≈ GPS** denotes an estimate from a fresh vehicle position matched to a trip by
+line, brigade, and location; it is not an operator-provided arrival prediction.
+Ambiguous matches, fixes over 90 seconds old, and unavailable GPS data use explicitly
+labelled **scheduled** times. Transfer connections remain estimates and can change
+with delays. Times use Europe/Warsaw, including service calendars and overnight trips.
+
+While awake, the card refreshes every 30 seconds and updates countdowns every second.
+Click **Offline** to stop polling and return to destination buttons. Reloading the HUD
+also starts asleep. Transit uses real public data even when other cards use mock mode.
+No API key or settings change is required. The first request downloads the current
+timetable; a local cache in `config/transit-gtfs.zip` allows up to 24 hours of fallback
+when the portal is unavailable. An expired display response is removed after 90 seconds.
 
 ## 🛠️ Extensibility: Adding a New Service
 

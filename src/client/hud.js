@@ -214,6 +214,9 @@ function checkUrgentAlerts(alerts) {
 
 function renderDashboard(state) {
   latestData = state;
+  if (Array.isArray(state.transitDestinations)) {
+    window.dispatchEvent(new CustomEvent('hud:transit-destinations', { detail: state.transitDestinations }));
+  }
 
   // Orientation
   const container = document.getElementById('hud-container');
@@ -222,7 +225,7 @@ function renderDashboard(state) {
   }
 
   // Render providers
-  document.querySelectorAll('.hud-card').forEach(card => {
+  document.querySelectorAll('.hud-card:not(#card-timer):not(#card-transit)').forEach(card => {
     card.classList.toggle('hidden', !state.providers?.[card.id.slice(5)]);
   });
   if (state.providers) {
