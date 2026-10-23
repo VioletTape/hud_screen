@@ -16,6 +16,7 @@ The HUD runs in a borderless WinForms/WebView2 window. A separate browser page o
 | System | CPU, memory, and GPU utilization on the backend host |
 | Trams | On-demand journeys accounting for a ten-minute walk and optional transfers |
 | Timer | Preset or custom countdowns that survive reloads |
+| School | Librus first lesson start and subject, plus the last lesson end |
 
 Disabled integrations are hidden, and the remaining cards use the available space. Horizontal and vertical layouts are selectable in Settings. Critical provider notifications appear in a banner that dismisses after ten seconds.
 
@@ -25,7 +26,7 @@ The Express backend polls work integrations and system stats on a **60-second cy
 
 ### Requirements
 
-- Windows with Node.js **20.12 or newer** and npm.
+- Windows with Node.js **22.12 or newer** and npm.
 - **.NET 10 SDK** to build the native HUD.
 - **Microsoft Edge WebView2 Runtime** to run the native HUD.
 
@@ -125,6 +126,14 @@ Add a corporate feed, a personal feed, or both using published **HTTPS links who
 The card combines both feeds and displays the next two upcoming events, with titles, dates, times, and time-until-start values. Corporate and personal events have distinct styling, as do recurring events and meetings with more than 20 attendees. Recurrence exceptions, cancellations, and all-day events are handled.
 
 Feeds are cached for 15 minutes. A failed download can reuse the previous feed with a warning. The backend uses `Europe/Warsaw` for floating calendar dates; displayed meeting times use the HUD browser's local timezone.
+
+### Librus school timetable
+
+Enable **Librus School Timetable** in Settings and enter the school-issued **Synergia login and password**, as in the Librus PoC. Use **Test Connection**, save, and turn off demo mode for live data. Leave the password blank on later saves to retain it; the saved password is never returned to the settings page.
+
+The collapsible school card sits below the timer. It shows today's first active lesson start and subject, and the final active lesson end. At **17:00 in the HUD browser's local timezone**, it switches to tomorrow's schedule; at midnight it returns to today. Tomorrow means the next calendar day, including weekends. Cancelled lessons are excluded, and empty days show **No lessons**. Collapse state survives reloads.
+
+The HUD requests a fresh timetable daily at **17:00 and 21:00 local time**, as well as on initial load. A failed refresh keeps the last fetched timetable with a visible warning, including when collapsed. The backend shares in-flight requests across HUD windows and refreshes caches older than 24 hours. This uses the same unofficial `librus-sdk` 0.7.1 Gateway integration as the PoC; Librus login/API changes may require an update.
 
 ## System stats and timer
 

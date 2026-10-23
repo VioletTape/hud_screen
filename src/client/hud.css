@@ -101,6 +101,24 @@ html, body {
 }
 .hud-card.hidden { display: none; }
 
+.hud-card-stack {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  width: max-content;
+  max-width: 100%;
+}
+
+.hud-container.vertical .hud-card-stack { width: 100%; gap: 0; }
+.hud-container.vertical .hud-card-stack > .hud-card { width: 100%; }
+
+@media (orientation: portrait) {
+  .hud-grid .hud-card-stack { width: 100%; gap: 0; }
+  .hud-grid .hud-card-stack > .hud-card { width: 100%; }
+}
+
 .hud-card::before {
   content: '';
   position: absolute;
@@ -253,6 +271,34 @@ html, body {
   overflow: hidden;
   clip-path: inset(50%);
 }
+
+/* Librus school timetable */
+#card-librus { padding: 10px 12px; }
+#card-librus [hidden] { display: none; }
+.librus-title { margin-bottom: 0; }
+#card-librus #librus-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+}
+.librus-chevron { color: var(--text-muted); }
+#librus-toggle[aria-expanded="false"] .librus-chevron { transform: rotate(-90deg); }
+#librus-content { margin-top: 8px; }
+.librus-day { color: var(--text-muted); font-size: 10px; margin-bottom: 6px; }
+.librus-status { max-width: 100%; margin-top: 6px; color: var(--accent-amber); font-size: 11px; overflow-wrap: anywhere; }
+.librus-summary { min-width: 0; max-width: 100%; overflow-wrap: anywhere; white-space: pre-line; font-size: 14.3px; line-height: 1.5; }
+#card-librus #librus-toggle { cursor: pointer; touch-action: manipulation; }
+#card-librus button:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 2px; }
 
 #card-gitlab .metrics-row { margin: 0 0 4px; }
 #card-gitlab .gitlab-mr-feed { margin-top: 0; }

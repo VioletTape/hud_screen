@@ -61,6 +61,7 @@ export const DEFAULT_CONFIG: AppConfig = {
       { id: 'dworzec-glowny', name: 'Dworzec Główny', glyph: '🚅', directOnly: false },
     ],
   },
+  librus: { enabled: false, login: '', password: '' },
 };
 
 let currentConfig: AppConfig = { ...DEFAULT_CONFIG };
@@ -84,6 +85,7 @@ export function loadConfig(): AppConfig {
         slack: { ...DEFAULT_CONFIG.slack, ...(parsed.slack || {}) },
         email: { ...DEFAULT_CONFIG.email, ...(parsed.email || {}) },
         calendar: { ...DEFAULT_CONFIG.calendar, ...(parsed.calendar || {}) },
+        librus: { ...DEFAULT_CONFIG.librus, ...(parsed.librus || {}) },
         transit: { ...DEFAULT_CONFIG.transit, ...(parsed.transit || {}) },
       };
     } else {
@@ -176,6 +178,7 @@ export function saveConfig(newConfig: unknown): AppConfig {
     slack: { ...currentConfig.slack, ...(newConfig.slack || {}) },
     email: { ...currentConfig.email, ...(newConfig.email || {}) },
     calendar: { ...currentConfig.calendar, ...(newConfig.calendar || {}) },
+    librus: { ...currentConfig.librus, ...(newConfig.librus || {}) },
     transit: { ...currentConfig.transit, ...(newConfig.transit || {}) },
   };
 
@@ -220,6 +223,11 @@ export function getSanitizedConfig(): Record<string, any> {
       ...cfg.email,
       password: cfg.email.password ? '••••••••' : '',
       hasPassword: Boolean(cfg.email.password),
+    },
+    librus: {
+      ...cfg.librus,
+      password: '',
+      hasPassword: Boolean(cfg.librus.password),
     },
     // Private iCal feeds embed auth tokens directly within query parameters or path segments;
     // strip URLs completely and return boolean indicators to avoid leaking access tokens to the UI.

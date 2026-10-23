@@ -81,6 +81,19 @@ export interface CalendarConfig {
   personalUrl: string;
 }
 
+export interface LibrusConfig {
+  enabled: boolean;
+  login: string;
+  password: string;
+}
+
+export interface SchoolDay {
+  date: string;
+  firstLessonStart?: string;
+  firstLessonTitle?: string;
+  lastLessonEnd?: string;
+}
+
 export interface TransitDestination {
   id: string;
   name: string;
@@ -108,5 +121,6 @@ export interface AppConfig {
   slack: SlackConfig;
   email: EmailConfig;
   calendar: CalendarConfig;
+  librus: LibrusConfig;
   transit: TransitConfig;
 }

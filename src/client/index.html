@@ -148,6 +148,7 @@
         <div class="metrics-row" id="system-metrics"></div>
       </section>
 
+      <div class="hud-card-stack">
       <section class="hud-card" id="card-timer" aria-label="Countdown timer">
         <h2 class="card-title timer-title">
           <button type="button" id="timer-toggle" aria-expanded="true" aria-controls="timer-content" aria-label="Collapse timer">TIMER <span class="timer-chevron" aria-hidden="true">▾</span></button>
@@ -173,6 +174,18 @@
         </div>
         <span id="timer-announcement" class="timer-announcement" role="status"></span>
       </section>
+
+      <section class="hud-card" id="card-librus" aria-label="Librus school timetable: unknown">
+        <h2 class="card-title librus-title">
+          <button type="button" id="librus-toggle" aria-expanded="true" aria-controls="librus-content" aria-label="Collapse school timetable">SCHOOL <span class="librus-chevron" aria-hidden="true">▾</span></button>
+        </h2>
+        <div class="librus-status" id="librus-status" role="status" hidden></div>
+        <div id="librus-content">
+          <div class="librus-day" id="librus-day"></div>
+          <div class="librus-summary" id="librus-summary" role="status"></div>
+        </div>
+      </section>
+      </div>
 
     </main>
 

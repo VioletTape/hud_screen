@@ -289,6 +289,46 @@
         </div>
       </div>
 
+      <!-- Librus Service Card -->
+      <div class="service-card" id="card-librus-config">
+        <div class="service-card-header">
+          <div class="service-identity">
+            <span class="service-icon">🏫</span>
+            <div>
+              <h3>Librus School Timetable</h3>
+              <p>First lesson and last lesson end time</p>
+            </div>
+          </div>
+          <label class="switch-control">
+            <input type="checkbox" id="librus-enabled">
+            <span class="switch-slider"></span>
+          </label>
+        </div>
+
+        <div class="service-card-body">
+          <p class="field-hint">Use your school-issued Synergia login and password. Leave password blank to keep the saved password.</p>
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="librus-login">Login</label>
+              <input type="text" id="librus-login" class="form-input" autocomplete="username">
+            </div>
+            <div class="form-group flex-1">
+              <label for="librus-password">Password</label>
+              <div class="input-password-wrapper">
+                <input type="password" id="librus-password" class="form-input" autocomplete="new-password" placeholder="Password">
+                <button type="button" class="btn-toggle-pw">👁️</button>
+              </div>
+              <span class="field-hint" id="librus-password-status"></span>
+            </div>
+          </div>
+
+          <div class="test-action-row">
+            <button type="button" id="btn-test-librus" class="btn btn-sm btn-outline">Test Connection</button>
+            <span class="test-feedback" id="librus-test-feedback"></span>
+          </div>
+        </div>
+      </div>
+
       <!-- Published Outlook Calendar Feeds -->
       <div class="service-card" id="card-calendar-config">
         <div class="service-card-header">

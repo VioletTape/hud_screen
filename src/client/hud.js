@@ -185,8 +185,171 @@ function renderProviderCard(providerKey, data) {
       }
       break;
     }
+    case 'librus': {
+      renderLibrusSchedule(data);
+      refreshLibrusIfStale(data);
+      break;
+    }
   }
 }
+
+function localDateKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function renderLibrusSchedule(data = latestData?.providers?.librus) {
+  const dayEl = document.getElementById('librus-day');
+  const summary = document.getElementById('librus-summary');
+  const statusEl = document.getElementById('librus-status');
+  if (!dayEl || !summary || !statusEl || !data) return;
+
+  const now = new Date();
+  const isTomorrow = now.getHours() >= 17;
+  const date = new Date(now);
+  if (isTomorrow) date.setDate(date.getDate() + 1);
+  const day = Array.isArray(data.details?.days)
+    ? data.details.days.find(item => item.date === localDateKey(date))
+    : null;
+
+  dayEl.textContent = isTomorrow ? 'TOMORROW' : 'TODAY';
+  statusEl.hidden = data.status !== 'warning' && data.status !== 'error';
+  statusEl.textContent = statusEl.hidden ? '' : data.statusMessage || (data.status === 'warning' ? 'Refresh failed · showing last fetched timetable' : 'Timetable unavailable');
+  if (data.status === 'error') {
+    summary.textContent = 'Timetable unavailable';
+  } else if (!day) {
+    summary.textContent = 'No timetable data';
+  } else if (!day.firstLessonStart && !day.firstLessonTitle && !day.lastLessonEnd) {
+    summary.textContent = 'No lessons';
+  } else {
+    const lines = [];
+    if (day.firstLessonStart || day.firstLessonTitle) {
+      lines.push([day.firstLessonStart, day.firstLessonTitle].filter(Boolean).join(' '));
+    }
+    if (day.lastLessonEnd) lines.push(day.lastLessonEnd);
+    summary.textContent = lines.join('\n');
+  }
+}
+
+let librusScheduleTimeout;
+const librusRefreshStorageKey = 'hud-librus-refresh-attempt';
+let lastLibrusRefreshAttempt = '';
+
+function librusRefreshSlot(now = new Date()) {
+  const slot = new Date(now);
+  if (now.getHours() >= 21) {
+    slot.setHours(21, 0, 0, 0);
+  } else if (now.getHours() >= 17) {
+    slot.setHours(17, 0, 0, 0);
+  } else {
+    slot.setDate(slot.getDate() - 1);
+    slot.setHours(21, 0, 0, 0);
+  }
+  return { key: `${localDateKey(slot)}-${slot.getHours()}`, time: slot.getTime() };
+}
+
+function hasAttemptedLibrusRefresh(slot) {
+  if (lastLibrusRefreshAttempt === slot.key) return true;
+  try {
+    return localStorage.getItem(librusRefreshStorageKey) === slot.key;
+  } catch {
+    return false;
+  }
+}
+
+function markLibrusRefreshAttempt(slot) {
+  lastLibrusRefreshAttempt = slot.key;
+  try {
+    localStorage.setItem(librusRefreshStorageKey, slot.key);
+  } catch {
+    // Refresh scheduling still works when browser storage is unavailable.
+  }
+}
+
+async function refreshLibrus(slot) {
+  if (!latestData?.providers?.librus || latestData.providers.librus.status === 'disabled' || hasAttemptedLibrusRefresh(slot)) return;
+  markLibrusRefreshAttempt(slot);
+  try {
+    const response = await fetch('/api/librus/refresh', { method: 'POST' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const result = await response.json();
+    if (!latestData?.providers?.librus || latestData.providers.librus.status === 'disabled') return;
+    latestData.providers.librus = result;
+    renderProviderCard('librus', result);
+  } catch {
+    const current = latestData?.providers?.librus;
+    if (!current || current.status === 'disabled') return;
+    const failed = { ...current, status: 'warning', statusMessage: 'Refresh failed · showing last fetched timetable' };
+    latestData.providers.librus = failed;
+    renderProviderCard('librus', failed);
+  }
+}
+
+function refreshLibrusIfStale(data = latestData?.providers?.librus) {
+  if (!data || data.status === 'disabled') return;
+  const slot = librusRefreshSlot();
+  const lastUpdated = Date.parse(data.lastUpdated);
+  if ((!Number.isFinite(lastUpdated) || lastUpdated < slot.time) && !hasAttemptedLibrusRefresh(slot)) {
+    void refreshLibrus(slot);
+  }
+}
+
+function scheduleLibrusUpdate() {
+  clearTimeout(librusScheduleTimeout);
+  const now = new Date();
+  const next = new Date(now);
+  let refreshAtBoundary = true;
+  if (now.getHours() < 17) {
+    next.setHours(17, 0, 0, 0);
+  } else if (now.getHours() < 21) {
+    next.setHours(21, 0, 0, 0);
+  } else {
+    next.setDate(next.getDate() + 1);
+    next.setHours(0, 0, 0, 0);
+    refreshAtBoundary = false;
+  }
+  librusScheduleTimeout = setTimeout(() => {
+    renderLibrusSchedule();
+    if (refreshAtBoundary) refreshLibrus(librusRefreshSlot());
+    scheduleLibrusUpdate();
+  }, next.getTime() - now.getTime());
+}
+
+scheduleLibrusUpdate();
+document.addEventListener('visibilitychange', () => {
+  renderLibrusSchedule();
+  refreshLibrusIfStale();
+  scheduleLibrusUpdate();
+});
+
+(() => {
+  const storageKey = 'hud-librus-collapsed';
+  const toggle = document.getElementById('librus-toggle');
+  const content = document.getElementById('librus-content');
+  if (!toggle || !content) return;
+
+  function setCollapsed(collapsed) {
+    content.hidden = collapsed;
+    toggle.setAttribute('aria-expanded', String(!collapsed));
+    toggle.setAttribute('aria-label', collapsed ? 'Expand school timetable' : 'Collapse school timetable');
+  }
+
+  toggle.addEventListener('click', () => {
+    setCollapsed(!content.hidden);
+    try {
+      localStorage.setItem(storageKey, String(content.hidden));
+    } catch {
+      // Collapsing still works when browser storage is unavailable.
+    }
+  });
+  window.addEventListener('storage', event => {
+    if (event.key === storageKey || event.key === null) setCollapsed(event.newValue === 'true');
+  });
+  try {
+    setCollapsed(localStorage.getItem(storageKey) === 'true');
+  } catch {
+    setCollapsed(false);
+  }
+})();
 
 // Latch ID of displayed alert across SSE push intervals to prevent 10s auto-dismiss
 // from being repeatedly re-triggered or flickering on every state poll.

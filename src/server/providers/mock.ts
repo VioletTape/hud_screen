@@ -1,4 +1,5 @@
 import { ProviderResult, MetricItem, NotificationItem } from '../../shared/types.js';
+import { timetableWeeks } from './librus-timetable.js';
 
 export function getMockProvidersData(): Record<string, ProviderResult> {
   const now = new Date().toISOString();
@@ -141,5 +142,22 @@ export function getMockProvidersData(): Record<string, ProviderResult> {
     },
   };
 
-  return { gitlab, litellm, slack, email, calendar };
+  const librus: ProviderResult = {
+    source: 'librus', displayName: 'School timetable (Demo)', status: 'healthy',
+    lastUpdated: now, metrics: [], notifications: [],
+    details: {
+      days: timetableWeeks(new Date()).flatMap(week => {
+        const monday = new Date(`${week}T00:00:00Z`);
+        return Array.from({ length: 7 }, (_, index) => {
+          const day = new Date(monday);
+          day.setUTCDate(day.getUTCDate() + index);
+          return { date: day.toISOString().slice(0, 10), ...(index < 5 ? {
+            firstLessonStart: '08:00', firstLessonTitle: 'Mathematics', lastLessonEnd: '14:25',
+          } : {}) };
+        });
+      }),
+    },
+  };
+
+  return { gitlab, litellm, slack, email, calendar, librus };
 }

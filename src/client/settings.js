@@ -106,6 +106,12 @@ async function loadConfig() {
       document.getElementById('email-pw-status').textContent = 'Password stored';
     }
 
+    // Librus password stays blank on load; the server returns only hasPassword.
+    document.getElementById('librus-enabled').checked = Boolean(cfg.librus?.enabled);
+    document.getElementById('librus-login').value = cfg.librus?.login || '';
+    document.getElementById('librus-password').value = '';
+    document.getElementById('librus-password-status').textContent = cfg.librus?.hasPassword ? 'Password stored' : '';
+
     // Published calendar feeds (may contain embedded private tokens in their URL query strings;
     // inputs are blanked on load with separate status indicators to protect confidentiality)
     document.getElementById('calendar-enabled').checked = Boolean(cfg.calendar?.enabled);
@@ -304,6 +310,12 @@ document.getElementById('btn-test-email').addEventListener('click', () => {
   testService('email', { host, port, user, password }, document.getElementById('email-test-feedback'), document.getElementById('btn-test-email'));
 });
 
+document.getElementById('btn-test-librus').addEventListener('click', () => {
+  const login = document.getElementById('librus-login').value.trim();
+  const password = document.getElementById('librus-password').value;
+  testService('librus', { login, ...(password ? { password } : {}) }, document.getElementById('librus-test-feedback'), document.getElementById('btn-test-librus'));
+});
+
 document.getElementById('btn-test-calendar').addEventListener('click', () => {
   const corporateUrl = document.getElementById('calendar-corporate-url').value.trim();
   const personalUrl = document.getElementById('calendar-personal-url').value.trim();
@@ -365,6 +377,10 @@ document.getElementById('btn-save-all').addEventListener('click', async () => {
     calendar: {
       enabled: document.getElementById('calendar-enabled').checked,
     },
+    librus: {
+      enabled: document.getElementById('librus-enabled').checked,
+      login: document.getElementById('librus-login').value.trim(),
+    },
     transit: { destinations: transitDestinations },
   };
 
@@ -381,6 +397,9 @@ document.getElementById('btn-save-all').addEventListener('click', async () => {
 
   const emailPw = document.getElementById('email-password').value;
   if (emailPw) payload.email.password = emailPw;
+
+  const librusPassword = document.getElementById('librus-password').value;
+  if (librusPassword) payload.librus.password = librusPassword;
 
   // Tri-state calendar feed updates: blank input preserves existing stored URL,
   // new text updates it, and checking the explicit 'clear' box deletes it.

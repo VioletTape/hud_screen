@@ -8,10 +8,9 @@ import { build } from 'esbuild';
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 if (process.platform !== 'win32') throw new Error('Run this build with Windows Node.js.');
 
-// Node.js Single Executable Application (SEA) asset dictionary support (`sea-config.json` assets field)
-// was stabilized in Node v20.12.0. Earlier versions fail during SEA blob generation.
+// Librus SDK and its dependencies require Node.js 22; match the source runtime minimum.
 const [major, minor] = process.versions.node.split('.').map(Number);
-if (major < 20 || (major === 20 && minor < 12)) throw new Error('Node.js 20.12 or newer is required.');
+if (major < 22 || (major === 22 && minor < 12)) throw new Error('Node.js 22.12 or newer is required.');
 
 const outputDir = path.join(projectRoot, 'dist', 'windows');
 const temporaryDir = mkdtempSync(path.join(os.tmpdir(), 'control-panel-sea-'));
@@ -52,7 +51,7 @@ try {
     bundle: true,
     platform: 'node',
     format: 'cjs',
-    target: 'node20',
+    target: 'node22',
   });
 
   // Disable V8 snapshot and bytecode cache to prevent architecture-dependent instruction

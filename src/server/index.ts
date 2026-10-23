@@ -22,6 +22,7 @@ import { LiteLLMProvider } from './providers/litellm.js';
 import { SlackProvider } from './providers/slack.js';
 import { EmailProvider } from './providers/email.js';
 import { CalendarProvider } from './providers/calendar.js';
+import { LibrusProvider } from './providers/librus.js';
 import { TransitProvider } from './providers/transit.js';
 import { getMockProvidersData } from './providers/mock.js';
 import { getSystemStats } from './system-stats.js';
@@ -75,6 +76,7 @@ const litellmProvider = new LiteLLMProvider();
 const slackProvider = new SlackProvider();
 const emailProvider = new EmailProvider();
 const calendarProvider = new CalendarProvider();
+const librusProvider = new LibrusProvider();
 // Transit is fetched only by an awake widget; it is outside the background poller.
 const transitProvider = new TransitProvider();
 
@@ -137,6 +139,7 @@ async function pollAllProviders(configRefresh = false) {
         litellmProvider.fetchData(),
         slackProvider.fetchData(),
         emailProvider.fetchData(),
+        librusProvider.fetchData(),
         calendarProvider.fetchData().catch(err => {
           console.error('[Calendar] Polling failed:', err);
           logError('Calendar polling', err);
@@ -196,7 +199,7 @@ async function pollAllProviders(configRefresh = false) {
 
     providersResult.system = await systemStats;
 
-    for (const key of ['gitlab', 'litellm', 'slack', 'email', 'calendar'] as const) {
+    for (const key of ['gitlab', 'litellm', 'slack', 'email', 'calendar', 'librus'] as const) {
       if (!cfg[key].enabled) delete providersResult[key];
       else allAlerts.push(...(providersResult[key]?.notifications || []));
     }
@@ -231,6 +234,15 @@ pollAllProviders();
 setInterval(pollAllProviders, 60000); // 60 second cycle
 
 // Routes
+app.post('/api/librus/refresh', async (req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'no-store');
+  if (!getConfig().librus.enabled) return res.status(400).json({ message: 'School timetable is disabled' });
+  const result = getConfig().mockMode ? getMockProvidersData().librus : await librusProvider.fetchData(true);
+  latestState.providers.librus = result;
+  broadcastState(latestState);
+  res.json(result);
+});
+
 app.get('/api/transit/:destination', async (req: Request, res: Response) => {
   res.setHeader('Cache-Control', 'no-store');
   const destination = String(req.params.destination);
@@ -316,6 +328,9 @@ app.post('/api/test/:provider', async (req: Request, res: Response) => {
       case 'calendar': {
         const testRes = await calendarProvider.testConnection(payload);
         return res.json(testRes);
+      }
+      case 'librus': {
+        return res.json(await librusProvider.testConnection(payload));
       }
       default:
         return res.status(400).json({ success: false, message: `Unknown provider: ${provider}` });

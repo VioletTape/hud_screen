@@ -5,7 +5,7 @@
   "main": "src/server/index.ts",
   "type": "module",
   "engines": {
-    "node": ">=20.12.0"
+    "node": ">=22.12.0"
   },
   "scripts": {
     "start": "tsx src/server/index.ts",
@@ -31,6 +31,7 @@
     "express": "^4.21.2",
     "fflate": "^0.8.3",
     "imapflow": "^1.0.171",
+    "librus-sdk": "0.7.1",
     "node-ical": "^0.25.6"
   },
   "devDependencies": {
