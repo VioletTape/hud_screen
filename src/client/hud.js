@@ -23,10 +23,75 @@ function formatMeetingDate(meeting) {
 
 // Clamps imminent meetings (< 1 min) to 1m so '0m' or negative offsets never appear before
 // the ticker ticks. Uses compact 'Xm' (< 1 hr) or 'H:MM' (>= 1 hr) to fit 8.8" bar display constraints.
-function formatTimeUntil(startAt) {
-  const minutes = Math.max(1, Math.ceil((new Date(startAt).getTime() - Date.now()) / 60000));
+function formatTimeUntil(startAt, nowMs = Date.now()) {
+  const diffMs = new Date(startAt).getTime() - nowMs;
+  if (diffMs <= 0) return 'NOW';
+  const minutes = Math.max(1, Math.ceil(diffMs / 60000));
   if (minutes < 60) return `${minutes}m`;
   return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')}`;
+}
+
+const ACTIVE_MEETING_GRACE_MS = 5 * 60_000;
+const CALENDAR_BOUNDARY_BUFFER_MS = 50; // Slight overshoot so Date.now() is past the boundary when the timer fires
+const CALENDAR_MIN_RECHECK_MS = 250; // Guard against tight re-render loops on sub-second clock jitter
+const MAX_TIMEOUT_DELAY_MS = 2_147_483_647; // 32-bit signed integer limit for browser setTimeout
+let calendarRenderTimeout;
+
+function meetingExpiryMs(meeting, startMs) {
+  const graceExpireMs = startMs + ACTIVE_MEETING_GRACE_MS;
+  const endMs = meeting.endAt ? new Date(meeting.endAt).getTime() : NaN;
+  return Number.isFinite(endMs) ? Math.min(graceExpireMs, endMs) : graceExpireMs;
+}
+
+function renderCalendarMeetings(data = latestData?.providers?.calendar) {
+  clearTimeout(calendarRenderTimeout);
+  const list = document.getElementById('calendar-meetings');
+  if (!list || !data) return;
+
+  const nowMs = Date.now();
+  const rawMeetings = data.details?.meetings || [];
+  const meetings = rawMeetings
+    .filter(meeting => {
+      const startMs = new Date(meeting.startAt).getTime();
+      if (!Number.isFinite(startMs)) return false;
+      if (startMs >= nowMs) return true;
+      return !meeting.allDay && meetingExpiryMs(meeting, startMs) > nowMs;
+    })
+    .slice(0, 2);
+
+  // Large meetings (>20 attendees) take visual styling precedence over recurring/single indicators.
+  list.innerHTML = meetings.length
+    ? meetings.map(meeting => {
+        const startMs = new Date(meeting.startAt).getTime();
+        const isActive = !meeting.allDay && startMs <= nowMs;
+        return `
+          <div class="meeting-item ${meeting.source === 'personal' ? 'personal' : 'corporate'} ${meeting.participantCount > 20 ? 'large' : meeting.recurring ? 'recurring' : 'single'}${isActive ? ' active' : ''}" aria-label="${isActive ? 'Active meeting; ' : ''}${meeting.participantCount > 20 ? 'Large meeting; ' : ''}${meeting.recurring ? 'Recurring' : 'Single'} ${escapeHtml(meeting.source)} calendar: ${escapeHtml(meeting.title)}">
+            <div class="meeting-title">${escapeHtml(meeting.title)}</div>
+            <div class="meeting-countdown">${formatTimeUntil(meeting.startAt, nowMs)}</div>
+            <div class="meeting-datetime">${formatMeetingDate(meeting)}</div>
+          </div>
+        `;
+      }).join('')
+    : '<div class="meeting-empty">No upcoming meetings</div>';
+
+  // Schedule exact boundary re-render when the next meeting starts or an active meeting's end/5m window expires.
+  let nextBoundaryMs = Infinity;
+  for (const meeting of meetings) {
+    if (meeting.allDay) continue;
+    const startMs = new Date(meeting.startAt).getTime();
+    if (startMs > nowMs && startMs < nextBoundaryMs) {
+      nextBoundaryMs = startMs;
+    } else if (startMs <= nowMs) {
+      const expireMs = meetingExpiryMs(meeting, startMs);
+      if (expireMs > nowMs && expireMs < nextBoundaryMs) {
+        nextBoundaryMs = expireMs;
+      }
+    }
+  }
+  if (Number.isFinite(nextBoundaryMs)) {
+    const delayMs = Math.min(MAX_TIMEOUT_DELAY_MS, Math.max(CALENDAR_MIN_RECHECK_MS, nextBoundaryMs - Date.now() + CALENDAR_BOUNDARY_BUFFER_MS));
+    calendarRenderTimeout = setTimeout(() => renderCalendarMeetings(), delayMs);
+  }
 }
 
 function renderProviderCard(providerKey, data) {
@@ -169,20 +234,7 @@ function renderProviderCard(providerKey, data) {
       break;
     }
     case 'calendar': {
-      const list = document.getElementById('calendar-meetings');
-      const meetings = data.details?.meetings || [];
-      if (list) {
-        // Large meetings (>20 attendees) take visual styling precedence over recurring/single indicators.
-        list.innerHTML = meetings.length
-          ? meetings.map(meeting => `
-              <div class="meeting-item ${meeting.source === 'personal' ? 'personal' : 'corporate'} ${meeting.participantCount > 20 ? 'large' : meeting.recurring ? 'recurring' : 'single'}" aria-label="${meeting.participantCount > 20 ? 'Large meeting; ' : ''}${meeting.recurring ? 'Recurring' : 'Single'} ${escapeHtml(meeting.source)} calendar: ${escapeHtml(meeting.title)}">
-                <div class="meeting-title">${escapeHtml(meeting.title)}</div>
-                <div class="meeting-countdown">${formatTimeUntil(meeting.startAt)}</div>
-                <div class="meeting-datetime">${formatMeetingDate(meeting)}</div>
-              </div>
-            `).join('')
-          : '<div class="meeting-empty">No upcoming meetings</div>';
-      }
+      renderCalendarMeetings(data);
       break;
     }
     case 'librus': {
@@ -316,6 +368,7 @@ function scheduleLibrusUpdate() {
 
 scheduleLibrusUpdate();
 document.addEventListener('visibilitychange', () => {
+  renderCalendarMeetings();
   renderLibrusSchedule();
   refreshLibrusIfStale();
   scheduleLibrusUpdate();

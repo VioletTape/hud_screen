@@ -539,6 +539,10 @@ html, body {
   background: rgba(255, 255, 255, 0.035);
 }
 
+.meeting-item.active {
+  background: rgba(252, 109, 38, 0.14);
+  border-color: rgba(252, 109, 38, 0.35);
+}
 .meeting-item.recurring { border-left-color: var(--accent-purple); }
 .meeting-item.single { border-left-color: #fc6d26; }
 .meeting-item.large { border-left-color: var(--text-muted); }
@@ -561,6 +565,7 @@ html, body {
 }
 
 .meeting-item.personal .meeting-countdown { color: #c084fc; }
+.meeting-item.active .meeting-countdown { color: #fc6d26; }
 .meeting-datetime {
   grid-column: 1 / -1;
   font-family: var(--font-mono);

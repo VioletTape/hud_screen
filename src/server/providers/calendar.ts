@@ -4,12 +4,13 @@ import { getConfig } from '../config.js';
 import { IProvider } from './base.js';
 
 type CalendarSource = 'corporate' | 'personal';
-type Meeting = { id: string; title: string; startAt: string; allDay: boolean; source: CalendarSource; recurring: boolean; participantCount: number };
+type Meeting = { id: string; title: string; startAt: string; endAt?: string; allDay: boolean; source: CalendarSource; recurring: boolean; participantCount: number };
 type CachedFeed = { url: string; refreshedAt: number; events: VEvent[] };
 
 const MAX_FEED_BYTES = 5_000_000;
 // ponytail: fixed 15-minute fetch cache; expose it in Settings if observed feed latency warrants tuning.
 const FEED_CACHE_MS = 15 * 60_000;
+const ACTIVE_MEETING_GRACE_MS = 5 * 60_000;
 const feedCache = new Map<CalendarSource, CachedFeed>();
 
 function text(value: VEvent['summary'] | undefined): string {
@@ -26,13 +27,21 @@ function countParticipants(event: VEvent): number {
   ).length;
 }
 
+function isVisibleMeeting(start: Date, end: Date | undefined, allDay: boolean, now: Date, activeCutoff: Date): boolean {
+  if (start >= now) return true;
+  if (allDay || start < activeCutoff) return false;
+  return !end || end > now;
+}
+
 function eventMeetings(event: VEvent, now: Date, source: CalendarSource): Meeting[] {
   if (event.status === 'CANCELLED' || !event.start) return [];
 
-  const makeMeeting = (start: Date, title: string, allDay: boolean, uid: string) => ({
+  const activeCutoff = new Date(now.getTime() - ACTIVE_MEETING_GRACE_MS);
+  const makeMeeting = (start: Date, end: Date | undefined, title: string, allDay: boolean, uid: string): Meeting => ({
     id: `${source}:${uid}:${start.toISOString()}`,
     title: title || 'Untitled meeting',
     startAt: start.toISOString(),
+    ...(end instanceof Date && !Number.isNaN(end.getTime()) ? { endAt: end.toISOString() } : {}),
     allDay,
     source,
     recurring: Boolean(event.rrule),
@@ -41,8 +50,9 @@ function eventMeetings(event: VEvent, now: Date, source: CalendarSource): Meetin
 
   if (!event.rrule) {
     // RFC 5545: datetype === 'date' indicates a VALUE=DATE property (all-day event without time or timezone).
-    return event.start >= now
-      ? [makeMeeting(event.start, text(event.summary), event.datetype === 'date', event.uid)]
+    const allDay = event.datetype === 'date';
+    return isVisibleMeeting(event.start, event.end, allDay, now, activeCutoff)
+      ? [makeMeeting(event.start, event.end, text(event.summary), allDay, event.uid)]
       : [];
   }
 
@@ -52,6 +62,25 @@ function eventMeetings(event: VEvent, now: Date, source: CalendarSource): Meetin
   const rule = event.rrule as unknown as {
     _rrule: { next(after: Date, inclusive: boolean): { epochMilliseconds: number } | null };
   };
+
+  // 1. Expand the 5-minute active grace window [activeCutoff, now - 1ms] directly so past ended
+  // occurrences never consume the bounded future-search attempt budget below.
+  const graceEnd = new Date(now.getTime() - 1);
+  if (activeCutoff <= graceEnd) {
+    const graceInstances = ical.expandRecurringEvent(event, {
+      from: activeCutoff,
+      to: graceEnd,
+    });
+    for (const instance of graceInstances) {
+      if (
+        instance.start < now &&
+        isVisibleMeeting(instance.start, instance.end, instance.isFullDay, now, activeCutoff)
+      ) {
+        meetings.push(makeMeeting(instance.start, instance.end, text(instance.summary), instance.isFullDay, event.uid));
+      }
+    }
+  }
+
   let cursor = new Date(now.getTime() - 1);
   let attempts = 0;
 
@@ -70,7 +99,7 @@ function eventMeetings(event: VEvent, now: Date, source: CalendarSource): Meetin
     });
     for (const instance of instances) {
       if (instance.start >= now) {
-        meetings.push(makeMeeting(instance.start, text(instance.summary), instance.isFullDay, event.uid));
+        meetings.push(makeMeeting(instance.start, instance.end, text(instance.summary), instance.isFullDay, event.uid));
       }
     }
   }
@@ -78,8 +107,11 @@ function eventMeetings(event: VEvent, now: Date, source: CalendarSource): Meetin
   // RFC 5545: Rescheduled or modified recurring instances are stored as separate VEVENTs in
   // event.recurrences (keyed by RECURRENCE-ID); evaluate them directly in case they moved into the future.
   for (const override of Object.values(event.recurrences || {}) as VEvent[]) {
-    if (override.status !== 'CANCELLED' && override.start && override.start >= now) {
-      meetings.push(makeMeeting(override.start, text(override.summary), override.datetype === 'date', event.uid));
+    if (override.status !== 'CANCELLED' && override.start) {
+      const allDay = override.datetype === 'date';
+      if (isVisibleMeeting(override.start, override.end, allDay, now, activeCutoff)) {
+        meetings.push(makeMeeting(override.start, override.end, text(override.summary), allDay, event.uid));
+      }
     }
   }
 

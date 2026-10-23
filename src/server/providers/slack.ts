@@ -15,7 +15,7 @@ interface IMState {
 
 const CHANNEL_DISCOVERY_CACHE_MS = 5 * 60 * 1000;
 const DM_DISCOVERY_CACHE_MS = 90 * 1000;
-const MAX_DMS_PER_POLL = 10;
+const MAX_DMS_PER_POLL = 12;
 const MAX_MESSAGE_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 const HISTORY_RECONCILE_MS = 15 * 60 * 1000;
 const DISCOVERY_SNAPSHOT_FILE = path.join(CONFIG_DIR, 'slack-discovery.json');
@@ -29,7 +29,8 @@ interface SlackDiscoverySnapshot {
   imScanCursor: number;
   imListCursor: string;
   mpimListCursor: string;
-  imChannels: Array<{ id: string; updated: number; user: string; is_mpim: boolean }>;
+  imChannels: Array<{ id: string; updated: number; user: string; is_mpim: boolean; lastActivity?: number }>;
+  imStates?: Array<{ id: string; unread: number; updated: number; validFrom: number; user: string; isGroup: boolean }>;
   historyCounts: Array<{ channelId: string; lastRead: string; latestMessageTs: string; scannedFrom: string; unread: number; reconciledAt: number }>;
   channelDiscoveryCache: {
     key: string;
@@ -112,6 +113,18 @@ export class SlackProvider implements IProvider {
             updated: Number(channel.updated) || 0,
             user: typeof channel.user === 'string' ? channel.user : '',
             is_mpim: Boolean(channel.is_mpim),
+            lastActivity: Number(channel.lastActivity) || 0,
+          });
+        }
+      }
+      for (const state of snapshot.imStates || []) {
+        if (typeof state.id === 'string' && state.id) {
+          this.imStates.set(state.id, {
+            unread: Number(state.unread) || 0,
+            updated: Number(state.updated) || 0,
+            validFrom: Number(state.validFrom) || 0,
+            user: typeof state.user === 'string' ? state.user : '',
+            isGroup: Boolean(state.isGroup),
           });
         }
       }
@@ -170,7 +183,9 @@ export class SlackProvider implements IProvider {
         updated: Number(channel.updated) || 0,
         user: channel.user || '',
         is_mpim: Boolean(channel.is_mpim),
+        ...(channel.lastActivity ? { lastActivity: Number(channel.lastActivity) } : {}),
       })),
+      imStates: [...this.imStates.entries()].map(([id, state]) => ({ id, ...state })),
       historyCounts: [...this.historyCounts.entries()].map(([channelId, count]) => ({ channelId, ...count })),
       channelDiscoveryCache: this.channelDiscoveryCache ? {
         key: this.channelDiscoveryCache.key,
@@ -447,7 +462,12 @@ export class SlackProvider implements IProvider {
                 this.imStates.delete(im.id);
                 this.historyCounts.delete(im.id);
               } else {
-                this.imChannels.set(im.id, { ...im, is_mpim: type === 'mpim' });
+                const existing = this.imChannels.get(im.id);
+                this.imChannels.set(im.id, {
+                  ...im,
+                  is_mpim: type === 'mpim',
+                  lastActivity: existing?.lastActivity,
+                });
               }
             }
             this.snapshotDirty = true;
@@ -464,17 +484,92 @@ export class SlackProvider implements IProvider {
           : 0;
         this.snapshotDirty = true;
       }
+      // 1. Discover recent active incoming DMs/mentions via search.messages (user token 'xoxp-').
+      // Slack search does not support 'is:unread', but 'to:me' returns recent incoming messages
+      // and channel mentions sorted by recency. We use this to instantly identify active DMs.
+      const recentActiveImIds = new Set<string>();
+      let searchMatches: any[] = [];
+
+      try {
+        const searchParams = new URLSearchParams({
+          query: 'to:me',
+          sort: 'timestamp',
+          sort_dir: 'desc',
+          count: '30',
+        });
+        const searchData = await request(`https://slack.com/api/search.messages?${searchParams}`, 6000);
+
+        if (searchData.ok && searchData.messages) {
+          searchMatches = searchData.messages.matches || [];
+          for (const m of searchMatches) {
+            const chId = m.channel?.id;
+            const ts = Number(m.ts);
+            if (chId && (m.channel?.is_im || m.channel?.is_mpim || chId.startsWith('D') || chId.startsWith('G'))) {
+              recentActiveImIds.add(chId);
+              const existing = this.imChannels.get(chId);
+              if (existing) {
+                if (Number.isFinite(ts) && ts > (existing.lastActivity || 0)) {
+                  existing.lastActivity = ts;
+                  this.snapshotDirty = true;
+                }
+              } else {
+                this.imChannels.set(chId, {
+                  id: chId,
+                  updated: Number.isFinite(ts) ? ts : 0,
+                  user: m.username || '',
+                  is_mpim: Boolean(m.channel?.is_mpim || chId.startsWith('G')),
+                  lastActivity: Number.isFinite(ts) ? ts : 0,
+                });
+                this.snapshotDirty = true;
+              }
+            }
+          }
+        } else if (searchData.error === 'missing_scope') {
+          missingScopes.push('search:read');
+        }
+      } catch (_) {
+        // Search error or rate limit
+      }
+
       const allIms = [...this.imChannels.values()];
 
       // Determine which IM channels to inspect this cycle
       const imsToInspect: any[] = [];
       const inspectedIds = new Set<string>();
 
-      // Prioritize recent activity, then rotate through every discovered IM.
-      for (const im of [...allIms].sort((a, b) => (b.updated || 0) - (a.updated || 0)).slice(0, 5)) {
-        imsToInspect.push(im);
-        inspectedIds.add(im.id);
+      // Priority 1: Channels discovered from recent search activity
+      for (const imId of recentActiveImIds) {
+        if (imsToInspect.length >= MAX_DMS_PER_POLL) break;
+        const im = this.imChannels.get(imId);
+        if (im && !inspectedIds.has(im.id)) {
+          imsToInspect.push(im);
+          inspectedIds.add(im.id);
+        }
       }
+
+      // Priority 2: Channels with known unread messages (to detect if they've been read)
+      for (const [imId, state] of this.imStates.entries()) {
+        if (imsToInspect.length >= MAX_DMS_PER_POLL) break;
+        if (state.unread > 0 && !inspectedIds.has(imId)) {
+          const im = this.imChannels.get(imId);
+          if (im) {
+            imsToInspect.push(im);
+            inspectedIds.add(im.id);
+          }
+        }
+      }
+
+      // Priority 3: Channels sorted by known lastActivity descending
+      const sortedByActivity = [...allIms].sort((a, b) => (b.lastActivity || 0) - (a.lastActivity || 0));
+      for (const im of sortedByActivity) {
+        if (imsToInspect.length >= MAX_DMS_PER_POLL) break;
+        if ((im.lastActivity || 0) > 0 && !inspectedIds.has(im.id)) {
+          imsToInspect.push(im);
+          inspectedIds.add(im.id);
+        }
+      }
+
+      // Priority 4: Rotate through all discovered IMs via cursor round-robin
       let scanned = 0;
       for (let i = 0; i < allIms.length && imsToInspect.length < MAX_DMS_PER_POLL; i++) {
         const im = allIms[(this.imScanCursor + i) % allIms.length];
@@ -496,13 +591,25 @@ export class SlackProvider implements IProvider {
             if (infoData.ok && infoData.channel) {
               const ch = infoData.channel;
               const isGroup = Boolean(ch.is_mpim || im.is_mpim);
-              // Slack's display count is authoritative, including 0; the legacy count can stay stale.
-              let unread = ch.unread_count_display ?? ch.unread_count ?? 0;
+              // Slack's display count is authoritative on user tokens.
               const hasUnreadCount = ch.unread_count_display !== undefined || ch.unread_count !== undefined;
+              let unread = ch.unread_count_display ?? ch.unread_count ?? 0;
               const lastRead = String(ch.last_read || '');
               const lastReadTs = Number(lastRead);
-              const lastReadIsRecent = Number.isFinite(lastReadTs) && lastReadTs >= Number(recentMessageCutoff);
-              if (!hasUnreadCount || (unread > 0 && !lastReadIsRecent)) {
+              const latestTs = Number(ch.latest?.ts || 0);
+
+              const channelActivity = Math.max(
+                Number.isFinite(latestTs) ? latestTs : 0,
+                Number.isFinite(lastReadTs) ? lastReadTs : 0
+              );
+              if (channelActivity > 0 && channelActivity > (im.lastActivity || 0)) {
+                im.lastActivity = channelActivity;
+                this.snapshotDirty = true;
+              }
+
+              // Fallback to conversations.history only if conversations.info did NOT provide unread count.
+              // Note: user tokens without im:history will throw 'missing_scope' on conversations.history for DMs.
+              if (!hasUnreadCount) {
                 try {
                   const historyResult = await this.countUnreadChannelMessages(im.id, lastRead, recentMessageCutoff, request, invalidTsOldest);
                   unread = historyResult.count;
@@ -511,16 +618,21 @@ export class SlackProvider implements IProvider {
                   if (err.message === 'missing_scope') missingScopes.push(isGroup ? 'mpim:history' : 'im:history');
                   requestLimited = true;
                   incompleteReasons.add(`${isGroup ? 'mpim' : 'im'} conversations.history: ${err.message || String(err)}`);
-                  return;
                 }
               }
+
               this.imStates.set(im.id, {
                 unread,
-                updated: im.updated || 0,
-                validFrom: Math.max(Number.isFinite(lastReadTs) ? lastReadTs : 0, Number(recentMessageCutoff)),
+                updated: im.lastActivity || im.updated || 0,
+                validFrom: Math.max(
+                  Number.isFinite(lastReadTs) ? lastReadTs : 0,
+                  Number.isFinite(latestTs) ? latestTs : 0,
+                  Date.now() / 1000
+                ),
                 user: ch.user || im.user || '',
                 isGroup,
               });
+              this.snapshotDirty = true;
             }
           } catch (_) {
             // Ignore individual fetch failure
@@ -533,8 +645,9 @@ export class SlackProvider implements IProvider {
       let totalUnreadDMs = 0;
 
       for (const [id, state] of this.imStates.entries()) {
-        if (state.validFrom < Number(recentMessageCutoff)) {
+        if (state.unread === 0 && state.validFrom < Number(recentMessageCutoff)) {
           this.imStates.delete(id);
+          this.snapshotDirty = true;
           continue;
         }
         if (state.unread > 0) {
@@ -568,42 +681,30 @@ export class SlackProvider implements IProvider {
         });
       }
 
-      // 2. Fetch unread mentions via search.messages. Requires a user token ('xoxp-');
-      // we explicitly filter out DM/MPIM channels (ID prefix 'D' or flags) to prevent
-      // double-counting messages already tallied in the DM summary above.
+      // 2. Fetch unread mentions via search matches. We filter out DM/MPIM channels
+      // to prevent double-counting messages already tallied in the DM summary above.
       const topMentions: Array<{ channel: string }> = [];
       let totalMentions = 0;
 
       try {
-        const afterDate = new Date(recentMessageCutoffMs).toISOString().slice(0, 10);
-        const searchParams = new URLSearchParams({
-          query: `to:me is:unread after:${afterDate}`,
-          sort: 'timestamp',
-          sort_dir: 'desc',
-          count: '100',
-        });
-        const searchData = await request(`https://slack.com/api/search.messages?${searchParams}`, 6000);
+        const channelMatches = searchMatches.filter((m: any) =>
+          Number(m.ts) >= Number(recentMessageCutoff) &&
+          m.channel && !m.channel.is_im && !m.channel.is_mpim &&
+          !m.channel.id?.startsWith('D') && !m.channel.id?.startsWith('G')
+        );
+        totalMentions = channelMatches.length;
+        const seenChannels = new Set<string>();
 
-        if (searchData.ok && searchData.messages) {
-          const matches: any[] = searchData.messages.matches || [];
-          const channelMatches = matches.filter((m: any) => Number(m.ts) >= Number(recentMessageCutoff) &&
-            m.channel && !m.channel.is_im && !m.channel.is_mpim && !m.channel.id?.startsWith('D'));
-          totalMentions = channelMatches.length;
-          const seenChannels = new Set<string>();
-
-          for (const m of channelMatches) {
-            let chName = m.channel.name;
-            if (chName && !chName.startsWith('#')) {
-              chName = `#${chName}`;
-            }
-            if (chName && !seenChannels.has(chName)) {
-              seenChannels.add(chName);
-              topMentions.push({ channel: chName });
-              if (topMentions.length >= 3) break;
-            }
+        for (const m of channelMatches) {
+          let chName = m.channel.name;
+          if (chName && !chName.startsWith('#')) {
+            chName = `#${chName}`;
           }
-        } else if (searchData.error === 'missing_scope') {
-          missingScopes.push('search:read');
+          if (chName && !seenChannels.has(chName)) {
+            seenChannels.add(chName);
+            topMentions.push({ channel: chName });
+            if (topMentions.length >= 3) break;
+          }
         }
       } catch (_) {
         // Search error
