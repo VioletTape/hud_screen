@@ -79,6 +79,8 @@ export interface CalendarConfig {
   enabled: boolean;
   corporateUrl: string;
   personalUrl: string;
+  thresholdEnabled: boolean;
+  thresholdHours: number;
 }
 
 export interface LibrusConfig {

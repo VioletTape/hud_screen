@@ -35,4 +35,6 @@ Git history is unavailable in this checkout, so no established commit convention
 
 ## Configuration and Secrets
 
-Do not commit real API keys, tokens, passwords, or mail credentials from `config/config.json`. Use sanitized example values when sharing configuration changes.
+Secrets (API tokens, passwords, mail credentials, and private calendar URLs) are stored in the user profile outside this workspace using `conf` (`%APPDATA%\ScreenHud\secrets.json` on Windows). The workspace file `config/config.json` contains only non-sensitive layout, display, and provider settings with empty secret strings. Run persistence checks with `SCREEN_HUD_SECRETS_PATH` pointing to a temporary file.
+
+Do not commit real API keys, tokens, passwords, or credentials. Never inspect or read external user secret files. Use `src/shared/types.ts` and `DEFAULT_CONFIG` in `src/server/config.ts` to inspect configuration structure and defaults.

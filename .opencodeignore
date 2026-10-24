@@ -1,0 +1,7 @@
+# Prevent OpenCode tools from inspecting local runtime config files with active setups
+config/config.json
+config/config.json.bak
+config/logs/
+*.env
+*.env.*
+!*.env.example

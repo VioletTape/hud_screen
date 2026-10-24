@@ -151,7 +151,11 @@ async function pollAllProviders(configRefresh = false) {
             lastUpdated: new Date().toISOString(),
             metrics: [],
             notifications: [],
-            details: { meetings: [] },
+            details: {
+              meetings: [],
+              thresholdEnabled: cfg.calendar.thresholdEnabled,
+              thresholdHours: cfg.calendar.thresholdHours,
+            },
           };
         }),
       ]);
@@ -206,6 +210,12 @@ async function pollAllProviders(configRefresh = false) {
 
     // Sort alerts by timestamp descending
     allAlerts.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    if (providersResult.calendar?.details) {
+      const currentCalendar = getConfig().calendar;
+      providersResult.calendar.details.thresholdEnabled = currentCalendar.thresholdEnabled;
+      providersResult.calendar.details.thresholdHours = currentCalendar.thresholdHours;
+    }
 
     latestState = {
       timestamp: new Date().toISOString(),
@@ -289,7 +299,12 @@ app.get('/api/config', (req: Request, res: Response) => {
 app.post('/api/config', (req: Request, res: Response) => {
   try {
     saveConfig(req.body);
-    latestState.transitDestinations = getConfig().transit.destinations;
+    const updatedCfg = getConfig();
+    latestState.transitDestinations = updatedCfg.transit.destinations;
+    if (latestState.providers.calendar?.details) {
+      latestState.providers.calendar.details.thresholdEnabled = updatedCfg.calendar.thresholdEnabled;
+      latestState.providers.calendar.details.thresholdHours = updatedCfg.calendar.thresholdHours;
+    }
     broadcastState(latestState);
     // Trigger immediate refresh with new settings
     setTimeout(() => pollAllProviders(true), 100);

@@ -1,4 +1,5 @@
 import { ProviderResult, MetricItem, NotificationItem } from '../../shared/types.js';
+import { getConfig } from '../config.js';
 import { timetableWeeks } from './librus-timetable.js';
 
 export function getMockProvidersData(): Record<string, ProviderResult> {
@@ -139,6 +140,8 @@ export function getMockProvidersData(): Record<string, ProviderResult> {
         { id: 'mock-meeting-1', title: 'Platform planning and roadmap', startAt: new Date(Date.now() + 5 * 60 * 60 * 1000 + 24 * 60 * 1000).toISOString(), allDay: false, source: 'corporate' },
         { id: 'mock-meeting-2', title: 'Dinner with friends', startAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), allDay: false, source: 'personal' },
       ],
+      thresholdEnabled: getConfig().calendar.thresholdEnabled,
+      thresholdHours: getConfig().calendar.thresholdHours,
     },
   };
 

@@ -367,6 +367,21 @@
             <label class="calendar-clear-control"><input type="checkbox" id="calendar-clear-personal"> Remove saved link</label>
           </div>
 
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="calendar-threshold-enabled">Upcoming meeting threshold</label>
+              <label class="switch-control">
+                <input type="checkbox" id="calendar-threshold-enabled">
+                <span class="switch-slider"></span>
+                <span class="switch-label">Enable threshold</span>
+              </label>
+            </div>
+            <div class="form-group flex-1">
+              <label for="calendar-threshold-hours">Threshold (hours)</label>
+              <input type="number" id="calendar-threshold-hours" class="form-input" min="1" max="168" step="1" required value="12">
+            </div>
+          </div>
+
           <div class="test-action-row">
             <button type="button" id="btn-test-calendar" class="btn btn-sm btn-outline">Test Calendar Feeds</button>
             <span class="test-feedback" id="calendar-test-feedback"></span>

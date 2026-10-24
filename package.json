@@ -13,6 +13,7 @@
     "build": "tsc",
     "build:hud": "node scripts/build-hud.mjs",
     "build:exe": "node scripts/build-sea.mjs",
+    "secrets": "node scripts/user-secrets.js",
     "launch:windows": "powershell.exe -ExecutionPolicy Bypass -File scripts/launch-hud.ps1"
   },
   "keywords": [
@@ -27,7 +28,9 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "conf": "^16.0.0",
     "dotenv": "^16.4.7",
+    "env-paths": "^4.0.0",
     "express": "^4.21.2",
     "fflate": "^0.8.3",
     "imapflow": "^1.0.171",

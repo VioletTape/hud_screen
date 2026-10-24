@@ -185,7 +185,9 @@ when the portal is unavailable. An expired display response is removed after 90 
 
 The server listens on **`127.0.0.1:3888`**. It is a local desktop app with no login screen. Set `PORT` to change the backend port, or `HUD_AUTO_LAUNCH=0` to run without automatically opening the native HUD.
 
-Source runs create `config/config.json` on first launch. Packaged runs use the folder beside the backend executable. Credentials and private calendar URLs are stored in that file; configuration responses mask credentials and omit private calendar URLs. The `config/` folder, `.env` files, generated builds, browser profiles, and logs are excluded from Git.
+Source runs create `config/config.json` on first launch. Packaged runs use the folder beside the backend executable. Non-sensitive settings stay in that file; credentials and private calendar URLs are stored separately using `conf`. Windows runs keep the user store at `%APPDATA%\ScreenHud\secrets.json`, shared by source and packaged runs. Other platforms use `conf`'s standard user configuration directory; WSL runs have their own store. Existing credentials in workspace configuration are migrated automatically. Configuration responses mask credentials and omit private calendar URLs. The `config/` folder, `.env` files, generated builds, browser profiles, and logs are excluded from Git.
+
+The user store is plaintext JSON, intended to keep credentials outside the repository. After `npm run build`, use `npm run secrets -- path`, `npm run secrets -- list` (masked values), or `npm run secrets -- open` to manage it. `SCREEN_HUD_SECRETS_PATH` overrides the store location for isolated checks. Invalid secret files stop loading and saving until corrected, preserving existing settings.
 
 The backend also writes local diagnostic logs and provider caches. Avoid sharing runtime settings or cache files with the repository. There are `pollIntervalSec` fields in the configuration schema, but the current background poller uses a shared 60-second cycle.
 

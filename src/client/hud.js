@@ -50,14 +50,27 @@ function renderCalendarMeetings(data = latestData?.providers?.calendar) {
 
   const nowMs = Date.now();
   const rawMeetings = data.details?.meetings || [];
+  const thresholdEnabled = Boolean(data.details?.thresholdEnabled);
+  const thresholdHours = Number(data.details?.thresholdHours) || 12;
+  const thresholdMs = thresholdHours * 60 * 60 * 1000;
+
   const meetings = rawMeetings
     .filter(meeting => {
       const startMs = new Date(meeting.startAt).getTime();
       if (!Number.isFinite(startMs)) return false;
-      if (startMs >= nowMs) return true;
+      if (startMs >= nowMs) {
+        if (thresholdEnabled && startMs > nowMs + thresholdMs) {
+          return false;
+        }
+        return true;
+      }
       return !meeting.allDay && meetingExpiryMs(meeting, startMs) > nowMs;
     })
     .slice(0, 2);
+
+  const emptyMessage = thresholdEnabled
+    ? `No meetings in ${thresholdHours} hours`
+    : 'No upcoming meetings';
 
   // Large meetings (>20 attendees) take visual styling precedence over recurring/single indicators.
   list.innerHTML = meetings.length
@@ -72,7 +85,7 @@ function renderCalendarMeetings(data = latestData?.providers?.calendar) {
           </div>
         `;
       }).join('')
-    : '<div class="meeting-empty">No upcoming meetings</div>';
+    : `<div class="meeting-empty">${escapeHtml(emptyMessage)}</div>`;
 
   // Schedule exact boundary re-render when the next meeting starts or an active meeting's end/5m window expires.
   let nextBoundaryMs = Infinity;
@@ -88,6 +101,19 @@ function renderCalendarMeetings(data = latestData?.providers?.calendar) {
       }
     }
   }
+
+  // Also schedule boundary when a meeting outside the threshold enters the threshold window.
+  if (thresholdEnabled) {
+    for (const meeting of rawMeetings) {
+      const startMs = new Date(meeting.startAt).getTime();
+      if (!Number.isFinite(startMs)) continue;
+      const enterThresholdMs = startMs - thresholdMs;
+      if (enterThresholdMs > nowMs && enterThresholdMs < nextBoundaryMs) {
+        nextBoundaryMs = enterThresholdMs;
+      }
+    }
+  }
+
   if (Number.isFinite(nextBoundaryMs)) {
     const delayMs = Math.min(MAX_TIMEOUT_DELAY_MS, Math.max(CALENDAR_MIN_RECHECK_MS, nextBoundaryMs - Date.now() + CALENDAR_BOUNDARY_BUFFER_MS));
     calendarRenderTimeout = setTimeout(() => renderCalendarMeetings(), delayMs);

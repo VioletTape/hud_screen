@@ -16,6 +16,7 @@
 /.aws/
 /.codex/
 /scratch/
+/handoff/
 
 # Logs and operating-system files
 *.log

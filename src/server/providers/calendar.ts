@@ -188,7 +188,11 @@ export class CalendarProvider implements IProvider {
       lastUpdated: fetchedAt,
       metrics: [],
       notifications: [],
-      details: { meetings: [] },
+      details: {
+        meetings: [],
+        thresholdEnabled: config.thresholdEnabled,
+        thresholdHours: config.thresholdHours,
+      },
     });
 
     if (!config.enabled) return empty('disabled', 'Disabled');
@@ -242,7 +246,11 @@ export class CalendarProvider implements IProvider {
       lastUpdated: fetchedAt,
       metrics: [],
       notifications: [],
-      details: { meetings },
+      details: {
+        meetings,
+        thresholdEnabled: config.thresholdEnabled,
+        thresholdHours: config.thresholdHours,
+      },
     };
   }
 }

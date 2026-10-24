@@ -115,6 +115,11 @@ async function loadConfig() {
     // Published calendar feeds (may contain embedded private tokens in their URL query strings;
     // inputs are blanked on load with separate status indicators to protect confidentiality)
     document.getElementById('calendar-enabled').checked = Boolean(cfg.calendar?.enabled);
+    const thresholdEnabled = Boolean(cfg.calendar?.thresholdEnabled);
+    document.getElementById('calendar-threshold-enabled').checked = thresholdEnabled;
+    const thresholdHoursInput = document.getElementById('calendar-threshold-hours');
+    thresholdHoursInput.value = cfg.calendar?.thresholdHours ?? 12;
+    thresholdHoursInput.disabled = !thresholdEnabled;
     for (const [urlId, statusId, clearId, isStored] of [
       ['calendar-corporate-url', 'calendar-corporate-status', 'calendar-clear-corporate', cfg.calendar?.hasCorporateUrl],
       ['calendar-personal-url', 'calendar-personal-status', 'calendar-clear-personal', cfg.calendar?.hasPersonalUrl],
@@ -322,6 +327,10 @@ document.getElementById('btn-test-calendar').addEventListener('click', () => {
   testService('calendar', { corporateUrl, personalUrl }, document.getElementById('calendar-test-feedback'), document.getElementById('btn-test-calendar'));
 });
 
+document.getElementById('calendar-threshold-enabled').addEventListener('change', (e) => {
+  document.getElementById('calendar-threshold-hours').disabled = !e.target.checked;
+});
+
 // Demo Mode Toggle
 document.getElementById('mock-mode-toggle').addEventListener('change', async (e) => {
   const mockMode = e.target.checked;
@@ -349,6 +358,10 @@ document.getElementById('btn-save-all').addEventListener('click', async () => {
     if (!name.reportValidity() || !glyph.reportValidity()) return;
     transitDestinations.push({ id: row.dataset.id, name: name.value, glyph: glyph.value, directOnly: row.querySelector('.transit-direct-only').checked });
   }
+  const thresholdEnabled = document.getElementById('calendar-threshold-enabled').checked;
+  const thresholdHoursInput = document.getElementById('calendar-threshold-hours');
+  if (thresholdEnabled && !thresholdHoursInput.reportValidity()) return;
+
   const btn = document.getElementById('btn-save-all');
   btn.disabled = true;
 
@@ -376,6 +389,8 @@ document.getElementById('btn-save-all').addEventListener('click', async () => {
     },
     calendar: {
       enabled: document.getElementById('calendar-enabled').checked,
+      thresholdEnabled,
+      thresholdHours: thresholdEnabled ? thresholdHoursInput.valueAsNumber : (parseInt(thresholdHoursInput.value, 10) || 12),
     },
     librus: {
       enabled: document.getElementById('librus-enabled').checked,

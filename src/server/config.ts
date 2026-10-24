@@ -1,13 +1,122 @@
-import fs from 'node:fs';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
+import Conf from 'conf';
+import envPaths from 'env-paths';
 import { isSea } from 'node:sea';
 import { AppConfig } from '../shared/types.js';
 
 // When running as a packaged SEA binary, resolve config adjacent to the executable
 // rather than process.cwd(), ensuring stability when launched from shortcuts or startup scripts.
 export const CONFIG_DIR = isSea() ? path.dirname(process.execPath) : path.resolve(process.cwd(), 'config');
-const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function deserializeConfig(text: string): Record<string, any> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text.replace(/^\uFEFF/, ''));
+  } catch {
+    throw new SyntaxError('Configuration document is not valid JSON');
+  }
+  if (!isRecord(parsed)) throw new TypeError('Configuration document must be an object');
+  return parsed;
+}
+
+export const SECRET_FIELDS: Record<string, string[]> = {
+  gitlab: ['token'],
+  litellm: ['masterKey'],
+  slack: ['botToken', 'userToken'],
+  email: ['password'],
+  calendar: ['corporateUrl', 'personalUrl'],
+  librus: ['login', 'password'],
+};
+
+type UserSecrets = Record<string, Record<string, string>>;
+let userSecretsStore: Conf<UserSecrets>;
+let workspaceConfigStore: Conf<Record<string, any>>;
+
+function getUserSecretsStore(): Conf<UserSecrets> {
+  const secretsPath = getUserSecretsPath();
+  return userSecretsStore ??= new Conf<UserSecrets>({
+    configName: path.basename(secretsPath),
+    fileExtension: '',
+    cwd: path.dirname(secretsPath),
+    configFileMode: 0o600,
+    deserialize: deserializeConfig,
+    schema: Object.fromEntries(Object.entries(SECRET_FIELDS).map(([section, fields]) => [section, {
+      type: 'object',
+      properties: Object.fromEntries(fields.map(field => [field, { type: 'string' }])),
+      additionalProperties: false,
+    }])),
+    rootSchema: { additionalProperties: false },
+  });
+}
+
+function getWorkspaceConfigStore(): Conf<Record<string, any>> {
+  return workspaceConfigStore ??= new Conf({
+    cwd: CONFIG_DIR, configName: 'config', configFileMode: 0o600, deserialize: deserializeConfig,
+  });
+}
+
+export function getUserSecretsPath(): string {
+  if (process.env.SCREEN_HUD_SECRETS_PATH) return path.resolve(process.env.SCREEN_HUD_SECRETS_PATH);
+  // Keep the existing Windows location; other platforms use the same path library as conf.
+  const directory = process.platform === 'win32' && process.env.APPDATA
+    ? path.join(process.env.APPDATA, 'ScreenHud') : envPaths('ScreenHud', { suffix: '' }).config;
+  return path.join(directory, 'secrets.json');
+}
+
+export function extractSecretsFrom(config: Record<string, any>, options: { includeEmpty?: boolean } = {}): Record<string, any> {
+  const { includeEmpty = false } = options;
+  const secrets: Record<string, any> = {};
+  for (const [section, fields] of Object.entries(SECRET_FIELDS)) {
+    if (isRecord(config[section])) {
+      for (const field of fields) {
+        if (!Object.prototype.hasOwnProperty.call(config[section], field)) continue;
+        const val = config[section][field];
+        if (typeof val === 'string') {
+          if (val.trim() !== '' || includeEmpty) {
+            if (!secrets[section]) secrets[section] = {};
+            secrets[section][field] = val;
+          }
+        }
+      }
+    }
+  }
+  return secrets;
+}
+
+export function stripSecretsFrom(config: Record<string, any>): Record<string, any> {
+  const stripped = JSON.parse(JSON.stringify(config));
+  for (const [section, fields] of Object.entries(SECRET_FIELDS)) {
+    if (isRecord(stripped[section])) {
+      for (const field of fields) {
+        if (field in stripped[section]) {
+          stripped[section][field] = '';
+        }
+      }
+    }
+  }
+  return stripped;
+}
+
+export function loadUserSecrets(): UserSecrets {
+  return getUserSecretsStore().store;
+}
+
+export function saveUserSecrets(secretsPatch: UserSecrets): void {
+  const store = getUserSecretsStore();
+  const merged = store.store;
+  for (const [section, fields] of Object.entries(secretsPatch)) {
+    merged[section] = { ...merged[section], ...fields };
+    for (const [field, value] of Object.entries(fields)) {
+      if (value === '') delete merged[section][field];
+    }
+    if (Object.keys(merged[section]).length === 0) delete merged[section];
+  }
+  store.store = merged;
+}
 
 export const DEFAULT_CONFIG: AppConfig = {
   mockMode: true,
@@ -53,6 +162,8 @@ export const DEFAULT_CONFIG: AppConfig = {
     enabled: true,
     corporateUrl: '',
     personalUrl: '',
+    thresholdEnabled: false,
+    thresholdHours: 12,
   },
   transit: {
     destinations: [
@@ -67,43 +178,40 @@ export const DEFAULT_CONFIG: AppConfig = {
 let currentConfig: AppConfig = { ...DEFAULT_CONFIG };
 
 export function loadConfig(): AppConfig {
-  try {
-    if (!fs.existsSync(CONFIG_DIR)) {
-      fs.mkdirSync(CONFIG_DIR, { recursive: true });
+  const store = getWorkspaceConfigStore();
+  let parsed = store.store;
+  const userSecrets = loadUserSecrets();
+  const extracted = extractSecretsFrom(parsed);
+  if (Object.keys(extracted).length > 0) {
+    for (const [section, fields] of Object.entries(extracted)) {
+      userSecrets[section] = { ...fields, ...userSecrets[section] };
     }
-    if (fs.existsSync(CONFIG_FILE)) {
-      const raw = fs.readFileSync(CONFIG_FILE, 'utf-8');
-      const parsed = JSON.parse(raw);
-      // Perform a two-level deep merge per section so newly added default options
-      // are preserved when reading older config files from disk.
-      currentConfig = {
-        ...DEFAULT_CONFIG,
-        ...parsed,
-        display: { ...DEFAULT_CONFIG.display, ...(parsed.display || {}) },
-        gitlab: { ...DEFAULT_CONFIG.gitlab, ...(parsed.gitlab || {}) },
-        litellm: { ...DEFAULT_CONFIG.litellm, ...(parsed.litellm || {}) },
-        slack: { ...DEFAULT_CONFIG.slack, ...(parsed.slack || {}) },
-        email: { ...DEFAULT_CONFIG.email, ...(parsed.email || {}) },
-        calendar: { ...DEFAULT_CONFIG.calendar, ...(parsed.calendar || {}) },
-        librus: { ...DEFAULT_CONFIG.librus, ...(parsed.librus || {}) },
-        transit: { ...DEFAULT_CONFIG.transit, ...(parsed.transit || {}) },
-      };
-    } else {
-      saveConfig(DEFAULT_CONFIG);
-    }
-  } catch (err) {
-    console.error('[Config] Failed to load config file, falling back to defaults:', err);
-    currentConfig = { ...DEFAULT_CONFIG };
+    getUserSecretsStore().store = userSecrets;
+    parsed = stripSecretsFrom(parsed);
+    store.store = parsed;
+    console.log('[Config] Migrated workspace secrets to', getUserSecretsPath());
+  } else if (Object.keys(parsed).length === 0) {
+    parsed = stripSecretsFrom(DEFAULT_CONFIG);
+    store.store = parsed;
   }
+
+  currentConfig = {
+    ...DEFAULT_CONFIG,
+    ...parsed,
+    display: { ...DEFAULT_CONFIG.display, ...(parsed.display || {}) },
+    gitlab: { ...DEFAULT_CONFIG.gitlab, ...(parsed.gitlab || {}), ...(userSecrets.gitlab || {}) },
+    litellm: { ...DEFAULT_CONFIG.litellm, ...(parsed.litellm || {}), ...(userSecrets.litellm || {}) },
+    slack: { ...DEFAULT_CONFIG.slack, ...(parsed.slack || {}), ...(userSecrets.slack || {}) },
+    email: { ...DEFAULT_CONFIG.email, ...(parsed.email || {}), ...(userSecrets.email || {}) },
+    calendar: { ...DEFAULT_CONFIG.calendar, ...(parsed.calendar || {}), ...(userSecrets.calendar || {}) },
+    librus: { ...DEFAULT_CONFIG.librus, ...(parsed.librus || {}), ...(userSecrets.librus || {}) },
+    transit: { ...DEFAULT_CONFIG.transit, ...(parsed.transit || {}) },
+  };
   return currentConfig;
 }
 
 export function getConfig(): AppConfig {
   return currentConfig;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 function validateTransitDestinations(value: unknown): void {
@@ -155,7 +263,8 @@ function validateConfigPatch(value: unknown): asserts value is Partial<AppConfig
         (field === 'port' && (!Number.isInteger(fieldValue) || fieldValue < 1 || fieldValue > 65535)) ||
         (field === 'pollIntervalSec' && (!Number.isInteger(fieldValue) || fieldValue < 1)) ||
         (field === 'scale' && fieldValue <= 0) ||
-        (field === 'dailyBudgetLimit' && fieldValue < 0)
+        (field === 'dailyBudgetLimit' && fieldValue < 0) ||
+        (field === 'thresholdHours' && (!Number.isInteger(fieldValue) || fieldValue < 1 || fieldValue > 168))
       )) throw new TypeError(`Invalid configuration field: ${section}.${field}`);
       if (section === 'display' && field === 'orientation' && !['horizontal', 'vertical'].includes(fieldValue as string)) {
         throw new TypeError('Invalid display.orientation');
@@ -169,33 +278,47 @@ function validateConfigPatch(value: unknown): asserts value is Partial<AppConfig
 
 export function saveConfig(newConfig: unknown): AppConfig {
   validateConfigPatch(newConfig);
+  const patch = newConfig as Partial<AppConfig>;
+  const baseConfig = loadConfig();
+
+  const secretsPatch = extractSecretsFrom(patch as Record<string, any>, { includeEmpty: true });
+  const hasSecretsPatch = Object.keys(secretsPatch).length > 0;
+  const previousSecrets = hasSecretsPatch ? loadUserSecrets() : undefined;
+
+  // Merge full configuration in memory
   const updatedConfig: AppConfig = {
-    ...currentConfig,
-    ...newConfig,
-    display: { ...currentConfig.display, ...(newConfig.display || {}) },
-    gitlab: { ...currentConfig.gitlab, ...(newConfig.gitlab || {}) },
-    litellm: { ...currentConfig.litellm, ...(newConfig.litellm || {}) },
-    slack: { ...currentConfig.slack, ...(newConfig.slack || {}) },
-    email: { ...currentConfig.email, ...(newConfig.email || {}) },
-    calendar: { ...currentConfig.calendar, ...(newConfig.calendar || {}) },
-    librus: { ...currentConfig.librus, ...(newConfig.librus || {}) },
-    transit: { ...currentConfig.transit, ...(newConfig.transit || {}) },
+    ...baseConfig,
+    ...patch,
+    display: { ...baseConfig.display, ...(patch.display || {}) },
+    gitlab: { ...baseConfig.gitlab, ...(patch.gitlab || {}) },
+    litellm: { ...baseConfig.litellm, ...(patch.litellm || {}) },
+    slack: { ...baseConfig.slack, ...(patch.slack || {}) },
+    email: { ...baseConfig.email, ...(patch.email || {}) },
+    calendar: { ...baseConfig.calendar, ...(patch.calendar || {}) },
+    librus: { ...baseConfig.librus, ...(patch.librus || {}) },
+    transit: { ...baseConfig.transit, ...(patch.transit || {}) },
   };
 
-  fs.mkdirSync(CONFIG_DIR, { recursive: true });
-  // Write atomically via a temporary file with owner-only permissions (0o600) and sync flush
-  // before renaming, preventing partial-write corruption and protecting credential confidentiality.
-  const tempFile = path.join(CONFIG_DIR, `.config-${randomUUID()}.tmp`);
+  let secretsSaved = false;
+  // shortcut: rollback covers write errors, add recovery if saves must survive process termination.
   try {
-    fs.writeFileSync(tempFile, JSON.stringify(updatedConfig, null, 2), {
-      encoding: 'utf-8', mode: 0o600, flag: 'wx', flush: true,
-    });
-    fs.renameSync(tempFile, CONFIG_FILE);
-  } finally {
-    if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
+    if (hasSecretsPatch) {
+      saveUserSecrets(secretsPatch);
+      secretsSaved = true;
+    }
+    getWorkspaceConfigStore().store = stripSecretsFrom(updatedConfig);
+  } catch (error) {
+    if (secretsSaved) {
+      try {
+        getUserSecretsStore().store = previousSecrets!;
+      } catch (rollbackError) {
+        throw new AggregateError([error, rollbackError], 'Configuration save failed and previous secrets could not be restored');
+      }
+    }
+    throw error;
   }
   currentConfig = updatedConfig;
-  console.log('[Config] Config saved successfully to', CONFIG_FILE);
+  console.log('[Config] Config saved successfully to', getWorkspaceConfigStore().path);
   return currentConfig;
 }
 
