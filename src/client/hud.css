@@ -50,15 +50,6 @@ html, body {
   flex: 1;
   width: 100%;
   display: flex;
-  flex-flow: row wrap;
-  align-content: flex-start;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-/* Vertical 480x1920 Layout */
-.hud-container.vertical .hud-grid {
   flex-direction: column;
   flex-wrap: nowrap;
   align-items: stretch;
@@ -66,27 +57,11 @@ html, body {
   gap: 0;
 }
 
-.hud-container.vertical .hud-card {
-  width: 100%;
-}
-
-@media (orientation: portrait) {
-  .hud-grid {
-    flex-direction: column;
-    flex-wrap: nowrap;
-    align-items: stretch;
-    justify-content: flex-start;
-    gap: 0;
-  }
-
-  .hud-card { width: 100%; }
-}
-
 /* HUD Card */
 .hud-card {
   flex: 0 0 auto;
   align-self: flex-start;
-  width: max-content;
+  width: 100%;
   max-width: 100%;
   background: var(--card-bg);
   border: 1px solid var(--card-border);
@@ -106,17 +81,9 @@ html, body {
   flex: 0 0 auto;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
-  width: max-content;
+  gap: 0;
+  width: 100%;
   max-width: 100%;
-}
-
-.hud-container.vertical .hud-card-stack { width: 100%; gap: 0; }
-.hud-container.vertical .hud-card-stack > .hud-card { width: 100%; }
-
-@media (orientation: portrait) {
-  .hud-grid .hud-card-stack { width: 100%; gap: 0; }
-  .hud-grid .hud-card-stack > .hud-card { width: 100%; }
 }
 
 .hud-card::before {
@@ -301,31 +268,31 @@ html, body {
 #card-librus button:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 2px; }
 
 /* Weather forecast card */
-#card-weather { padding: 10px 14px; }
+#card-weather { padding: 10px 10px; }
 #card-weather [hidden] { display: none; }
 .weather-summary {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
   font-family: var(--font-mono);
   white-space: nowrap;
 }
 .weather-cond-icon {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   flex-shrink: 0;
   display: block;
 }
 .weather-wind-icon {
-  width: 46px;
-  height: 38px;
+  width: 42px;
+  height: 34px;
   flex-shrink: 0;
   display: block;
 }
 /* Intentionally styled as static text without button chrome or pointer cursor (#weather-temp tap-to-toggle is a subtle HUD easter egg). */
 .weather-temp {
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 800;
   line-height: 1;
   color: #fff;
@@ -338,12 +305,12 @@ html, body {
 .weather-metrics-grid {
   display: grid;
   grid-template-columns: auto auto;
-  column-gap: 10px;
-  row-gap: 4px;
+  column-gap: 8px;
+  row-gap: 3px;
   align-items: center;
 }
 .weather-uv {
-  font-size: 16.5px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--accent-amber);
 }
@@ -351,12 +318,12 @@ html, body {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  font-size: 17.25px;
+  font-size: 15px;
   font-weight: 700;
   color: #38bdf8;
 }
 .weather-mm {
-  font-size: 17.25px;
+  font-size: 15px;
   font-weight: 700;
   color: #38bdf8;
 }
@@ -366,13 +333,13 @@ html, body {
   opacity: 0.9;
 }
 .weather-drop-icon {
-  width: 21px;
-  height: 21px;
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
   display: block;
 }
 .weather-pressure {
-  font-size: 16.5px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--text-muted);
   padding: 2px 6px;
@@ -399,10 +366,9 @@ html, body {
   color: #e2e8f0;
   font-size: 15.75px;
   line-height: 1.3;
-  max-width: 345px;
+  max-width: 100%;
   overflow-wrap: anywhere;
 }
-.hud-container.vertical .weather-pressure-hint { max-width: 100%; }
 #card-weather:has(.weather-pressure:hover, .weather-pressure:focus-visible) .weather-pressure-hint {
   display: block;
 }
@@ -500,17 +466,6 @@ html, body {
   font-weight: 600;
   font-size: 16.5px;
 }
-.hud-container.vertical #card-weather { padding: 10px 10px; }
-.hud-container.vertical .weather-summary { gap: 6px; }
-.hud-container.vertical .weather-cond-icon { width: 36px; height: 36px; }
-.hud-container.vertical .weather-wind-icon { width: 42px; height: 34px; }
-.hud-container.vertical .weather-temp { font-size: 28px; }
-.hud-container.vertical .weather-metrics-grid { column-gap: 8px; row-gap: 3px; }
-.hud-container.vertical .weather-uv,
-.hud-container.vertical .weather-precip,
-.hud-container.vertical .weather-mm,
-.hud-container.vertical .weather-pressure { font-size: 15px; }
-.hud-container.vertical .weather-drop-icon { width: 18px; height: 18px; }
 
 #card-gitlab .metrics-row { margin: 0 0 4px; }
 #card-gitlab .gitlab-mr-feed { margin-top: 0; }

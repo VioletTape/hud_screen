@@ -45,11 +45,9 @@ export async function detectWindowsMonitors(): Promise<DetectedMonitor[]> {
     return rawList.map((m: any, idx: number) => {
       const w = Number(m.W);
       const h = Number(m.H);
-      // Match characteristic ultrawide resolutions and rotated dimensions used by 8.8" and
-      // related auxiliary bar displays (e.g., 1920x480, 1280x320, 2560x720 in landscape or portrait).
-      const is88 = (w === 1920 && h === 480) || (w === 480 && h === 1920) ||
-                   (w === 1280 && h === 320) || (w === 320 && h === 1280) ||
-                   (w === 2560 && h === 720) || (w === 720 && h === 2560);
+      // Match characteristic portrait resolutions used by vertical 8.8" and
+      // related auxiliary bar displays (e.g., 480x1920, 320x1280, 720x2560).
+      const is88 = (w === 480 && h === 1920) || (w === 320 && h === 1280) || (w === 720 && h === 2560);
       const ratio = (w / h).toFixed(2);
 
       let label = `Display ${idx + 1}: ${w}×${h} at (${m.X},${m.Y})`;

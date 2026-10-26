@@ -192,12 +192,6 @@ body {
   color: var(--text-muted);
   border: 1px solid var(--border-color);
 }
-.btn-xs.active {
-  background: var(--accent-cyan);
-  color: #04101e;
-  border-color: var(--accent-cyan);
-  font-weight: 700;
-}
 
 /* Switch Control */
 .switch-control {
@@ -283,19 +277,14 @@ body {
 
 .preview-frame-container {
   width: 100%;
+  max-width: 220px;
+  height: 380px;
+  margin: 0 auto;
   background: #000;
   border-radius: 8px;
   overflow: hidden;
   border: 1px solid var(--border-color);
   position: relative;
-  height: 140px;
-  transition: height 0.3s ease;
-}
-
-.preview-frame-container.vertical-mode {
-  height: 380px;
-  max-width: 220px;
-  margin: 0 auto;
 }
 
 .preview-iframe {

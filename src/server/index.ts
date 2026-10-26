@@ -85,7 +85,6 @@ const transitProvider = new TransitProvider();
 // In-memory state cache
 let latestState: DashboardState = {
   timestamp: new Date().toISOString(),
-  orientation: getConfig().display.orientation || 'horizontal',
   scale: getConfig().display.scale || 1.0,
   providers: {},
   recentAlerts: [],
@@ -222,7 +221,6 @@ async function pollAllProviders(configRefresh = false) {
 
     latestState = {
       timestamp: new Date().toISOString(),
-      orientation: cfg.display.orientation,
       scale: cfg.display.scale,
       providers: providersResult,
       recentAlerts: allAlerts.slice(0, 10),

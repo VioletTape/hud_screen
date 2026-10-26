@@ -725,12 +725,6 @@ function renderDashboard(state) {
     window.dispatchEvent(new CustomEvent('hud:transit-destinations', { detail: state.transitDestinations }));
   }
 
-  // Orientation
-  const container = document.getElementById('hud-container');
-  if (container && state.orientation) {
-    container.className = `hud-container ${state.orientation}`;
-  }
-
   // Render providers
   document.querySelectorAll('.hud-card:not(#card-timer):not(#card-transit)').forEach(card => {
     card.classList.toggle('hidden', !state.providers?.[card.id.slice(5)]);

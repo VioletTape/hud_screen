@@ -121,7 +121,6 @@ export function saveUserSecrets(secretsPatch: UserSecrets): void {
 export const DEFAULT_CONFIG: AppConfig = {
   mockMode: true,
   display: {
-    orientation: 'horizontal',
     scale: 1.0,
     theme: 'oled-dark',
     enableMouseTrapProtection: true,
@@ -266,9 +265,6 @@ function validateConfigPatch(value: unknown): asserts value is Partial<AppConfig
         (field === 'dailyBudgetLimit' && fieldValue < 0) ||
         (field === 'thresholdHours' && (!Number.isInteger(fieldValue) || fieldValue < 1 || fieldValue > 168))
       )) throw new TypeError(`Invalid configuration field: ${section}.${field}`);
-      if (section === 'display' && field === 'orientation' && !['horizontal', 'vertical'].includes(fieldValue as string)) {
-        throw new TypeError('Invalid display.orientation');
-      }
       if (section === 'display' && field === 'theme' && !['oled-dark', 'cyberpunk', 'graphite'].includes(fieldValue as string)) {
         throw new TypeError('Invalid display.theme');
       }

@@ -128,53 +128,8 @@ async function loadConfig() {
       document.getElementById(statusId).textContent = isStored ? 'Link stored; leave blank to keep it' : '';
       document.getElementById(clearId).checked = false;
     }
-
-    // Orientation
-    setOrientationUI(cfg.display?.orientation || 'horizontal');
   } catch (err) {
     showToast(`Failed to load config: ${err.message}`);
-  }
-}
-
-// Orientation controls
-function setOrientationUI(orient) {
-  const btnHoriz = document.getElementById('btn-orient-horiz');
-  const btnVert = document.getElementById('btn-orient-vert');
-  const preview = document.getElementById('preview-container');
-
-  if (orient === 'vertical') {
-    btnVert.classList.add('active');
-    btnHoriz.classList.remove('active');
-    preview.classList.add('vertical-mode');
-  } else {
-    btnHoriz.classList.add('active');
-    btnVert.classList.remove('active');
-    preview.classList.remove('vertical-mode');
-  }
-}
-
-document.getElementById('btn-orient-horiz').addEventListener('click', () => {
-  setOrientationUI('horizontal');
-  saveOrientation('horizontal');
-});
-
-document.getElementById('btn-orient-vert').addEventListener('click', () => {
-  setOrientationUI('vertical');
-  saveOrientation('vertical');
-});
-
-async function saveOrientation(orient) {
-  try {
-    await fetch('/api/config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ display: { orientation: orient } }),
-    });
-    // Reload preview iframe
-    const iframe = document.getElementById('preview-iframe');
-    if (iframe) iframe.src = '/index.html?t=' + Date.now();
-  } catch (err) {
-    console.error('Failed to update orientation:', err);
   }
 }
 

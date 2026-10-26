@@ -1,6 +1,6 @@
 # Control Panel HUD
 
-A local status dashboard for secondary Windows bar displays, designed around 8.8-inch screens at **1920 × 480** or **480 × 1920**. It combines work integrations, upcoming meetings, host resource usage, Wrocław tram departures, and a countdown timer.
+A local status dashboard for secondary Windows bar displays, designed around vertical 8.8-inch screens at **480 × 1920**. It combines work integrations, upcoming meetings, host resource usage, Wrocław tram departures, and a countdown timer.
 
 The HUD runs in a borderless WinForms/WebView2 window. A separate browser page on your main monitor handles credentials, connection tests, display selection, and a live HUD preview. The timer and tram card have controls directly on the HUD.
 
@@ -18,7 +18,7 @@ The HUD runs in a borderless WinForms/WebView2 window. A separate browser page o
 | Timer | Preset or custom countdowns that survive reloads |
 | School | Librus first lesson start and subject, plus the last lesson end |
 
-Disabled integrations are hidden, and the remaining cards use the available space. Horizontal and vertical layouts are selectable in Settings. Critical provider notifications appear in a banner that dismisses after ten seconds.
+Disabled integrations are hidden, and the remaining cards use the available space. Critical provider notifications appear in a banner that dismisses after ten seconds.
 
 The Express backend polls work integrations and system stats on a **60-second cycle**, then pushes completed dashboard updates over Server-Sent Events (SSE). Saving configuration triggers a refresh. Calendar downloads are cached separately, and transit polls only while its card is awake.
 
@@ -147,7 +147,7 @@ Click the timer title to collapse or expand it. The deadline and collapsed state
 
 Settings includes **Lock Mouse to Main Screen** and **Release Mouse Lock** controls. The lock confines the pointer to the primary monitor rectangle using Windows cursor clipping. You can also run `scripts/lock-mouse.ps1`; `Ctrl+Alt+Del` releases the clipping. The HUD itself displays a normal pointer with text selection disabled, allowing interaction with the timer and transit card when the pointer is unlocked.
 
-For a layout-only alternative, position the bar display diagonally from the primary display in Windows Display Settings so that they meet only at a corner. Select horizontal or vertical layout in the app's Settings to match the display orientation.
+For a layout-only alternative, position the bar display diagonally from the primary display in Windows Display Settings so that they meet only at a corner.
 
 ## Trams 
 

@@ -32,7 +32,6 @@ export interface ProviderResult {
 
 export interface DashboardState {
   timestamp: string;
-  orientation: 'horizontal' | 'vertical';
   scale: number;
   providers: Record<string, ProviderResult>;
   recentAlerts: NotificationItem[];
@@ -108,7 +107,6 @@ export interface TransitConfig {
 }
 
 export interface DisplayConfig {
-  orientation: 'horizontal' | 'vertical';
   targetMonitorIndex?: number;
   scale: number;
   theme: 'oled-dark' | 'cyberpunk' | 'graphite';
