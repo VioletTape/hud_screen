@@ -413,25 +413,22 @@ html, body {
   font-size: 16.5px;
   overflow-wrap: anywhere;
 }
-#weather-toggle {
-  display: inline-flex;
+#card-weather #weather-toggle {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  align-self: flex-start;
-  width: 30px;
-  height: 30px;
   padding: 0;
-  border: 1px solid var(--card-border);
-  border-radius: 7px;
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--text-muted);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
   font: inherit;
-  font-size: 16.5px;
+  font-size: 16.25px;
+  font-weight: 800;
   cursor: pointer;
   touch-action: manipulation;
   flex-shrink: 0;
 }
-.weather-chevron { display: inline-block; }
+.weather-chevron { color: var(--text-muted); }
 #weather-toggle[aria-expanded="false"] .weather-chevron { transform: rotate(-90deg); }
 #weather-content {
   margin-top: 6px;
@@ -514,7 +511,6 @@ html, body {
 .hud-container.vertical .weather-mm,
 .hud-container.vertical .weather-pressure { font-size: 15px; }
 .hud-container.vertical .weather-drop-icon { width: 18px; height: 18px; }
-.hud-container.vertical #weather-toggle { width: 28px; height: 28px; font-size: 15px; }
 
 #card-gitlab .metrics-row { margin: 0 0 4px; }
 #card-gitlab .gitlab-mr-feed { margin-top: 0; }
