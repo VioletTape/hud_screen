@@ -185,6 +185,38 @@
           <div class="librus-summary" id="librus-summary" role="status"></div>
         </div>
       </section>
+
+      <section class="hud-card" id="card-weather" aria-label="Weather (Kozanów) status: unknown">
+        <div class="weather-summary" id="weather-summary">
+          <img class="weather-cond-icon" id="weather-cond-icon" alt="" aria-hidden="true" hidden>
+          <!-- Intentionally a plain span without button chrome/focus/pointer cursor: subtle tap-to-toggle on the HUD -->
+          <span class="weather-temp" id="weather-temp">--°</span>
+          <img class="weather-wind-icon" id="weather-wind-icon" alt="" aria-hidden="true" hidden>
+          <div class="weather-metrics-grid">
+            <span class="weather-precip" id="weather-precip">
+              <img class="weather-drop-icon" id="weather-drop-icon" alt="" aria-hidden="true" hidden>
+              <span id="weather-precip-val">-%</span>
+            </span>
+            <span class="weather-mm" id="weather-mm">
+              <span id="weather-mm-val">-</span> <span class="weather-mm-unit">mm</span>
+            </span>
+            <span class="weather-uv" id="weather-uv">UV -</span>
+            <span class="weather-pressure" id="weather-pressure" tabindex="0">--</span>
+          </div>
+          <button type="button" id="weather-toggle" aria-expanded="false" aria-controls="weather-content" aria-label="Expand weather forecast">
+            <span class="weather-chevron" aria-hidden="true">▾</span>
+          </button>
+        </div>
+        <div class="weather-pressure-hint" id="weather-pressure-hint" role="note"></div>
+        <div class="weather-status" id="weather-status" role="status" hidden></div>
+        <div id="weather-content" hidden>
+          <div class="weather-modes" role="group" aria-label="Forecast horizon">
+            <button type="button" data-weather-mode="dog-walk" aria-pressed="true">Dog walk</button>
+            <button type="button" data-weather-mode="go-out" aria-pressed="false">Go out</button>
+          </div>
+          <div class="weather-forecast" id="weather-forecast"></div>
+        </div>
+      </section>
       </div>
 
     </main>

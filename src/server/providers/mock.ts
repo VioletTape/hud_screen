@@ -162,5 +162,62 @@ export function getMockProvidersData(): Record<string, ProviderResult> {
     },
   };
 
-  return { gitlab, litellm, slack, email, calendar, librus };
+  const weather: ProviderResult = {
+    source: 'weather',
+    displayName: 'Weather (Kozanów)',
+    status: 'healthy',
+    statusMessage: 'Partly cloudy',
+    lastUpdated: now,
+    metrics: [],
+    notifications: [],
+    details: {
+      location: 'Wrocław, Kozanów',
+      current: {
+        time: '13:00',
+        temp: 7.3,
+        feelsLike: 5.8,
+        precip: 0,
+        precipProb: 0,
+        weatherCode: 2,
+        weatherLabel: 'Partly cloudy',
+        icon: 'partly-cloudy-day',
+        isDay: true,
+        uv: 3,
+        windSpeed: 14.2,
+        windGusts: 24.5,
+        windDir: 250,
+        windBft: 3,
+        windLabel: 'Gentle breeze',
+        gustBft: 4,
+        pressureMsl: 1018,
+        surfacePressure: 1004,
+        pressureTrend: {
+          arrow: '↑',
+          delta3h: 1.6,
+          delta6h: 2.9,
+          label: 'Rising',
+          hint: 'High pressure building — drier air, clearing skies, lower rain risk.',
+        },
+        lightning: false,
+      },
+      dogWalk: [
+        { time: '13:00', isoTime: '2026-10-26T13:00', temp: 7.3, feelsLike: 5.8, precip: 0, precipProb: 0, weatherCode: 2, weatherLabel: 'Partly cloudy', icon: 'partly-cloudy-day', isDay: true, windSpeed: 14.2, windGusts: 24.5, windDir: 250, windBft: 3, windLabel: 'Gentle breeze', gustBft: 4, lightning: false, lpi: 0, cape: 20 },
+        { time: '13:15', isoTime: '2026-10-26T13:15', temp: 7.5, feelsLike: 6.0, precip: 0, precipProb: 0, weatherCode: 2, weatherLabel: 'Partly cloudy', icon: 'partly-cloudy-day', isDay: true, windSpeed: 15.0, windGusts: 25.2, windDir: 252, windBft: 3, windLabel: 'Gentle breeze', gustBft: 4, lightning: false, lpi: 0, cape: 20 },
+        { time: '13:30', isoTime: '2026-10-26T13:30', temp: 7.8, feelsLike: 6.2, precip: 0, precipProb: 5, weatherCode: 2, weatherLabel: 'Partly cloudy', icon: 'partly-cloudy-day', isDay: true, windSpeed: 16.4, windGusts: 27.0, windDir: 255, windBft: 3, windLabel: 'Gentle breeze', gustBft: 4, lightning: false, lpi: 0, cape: 30 },
+        { time: '13:45', isoTime: '2026-10-26T13:45', temp: 8.0, feelsLike: 6.4, precip: 0, precipProb: 5, weatherCode: 3, weatherLabel: 'Overcast', icon: 'overcast', isDay: true, windSpeed: 18.1, windGusts: 29.5, windDir: 258, windBft: 3, windLabel: 'Gentle breeze', gustBft: 5, lightning: false, lpi: 0, cape: 40 },
+        { time: '14:00', isoTime: '2026-10-26T14:00', temp: 7.9, feelsLike: 6.1, precip: 0, precipProb: 10, weatherCode: 3, weatherLabel: 'Overcast', icon: 'overcast', isDay: true, windSpeed: 19.8, windGusts: 31.0, windDir: 260, windBft: 4, windLabel: 'Moderate breeze', gustBft: 5, lightning: false, lpi: 0, cape: 40 },
+        { time: '14:15', isoTime: '2026-10-26T14:15', temp: 7.7, feelsLike: 5.9, precip: 0, precipProb: 10, weatherCode: 3, weatherLabel: 'Overcast', icon: 'overcast', isDay: true, windSpeed: 20.5, windGusts: 32.4, windDir: 260, windBft: 4, windLabel: 'Moderate breeze', gustBft: 5, lightning: false, lpi: 0, cape: 50 },
+      ],
+      goOut: [
+        { time: '13:00', isoTime: '2026-10-26T13:00', temp: 7.3, feelsLike: 5.8, precip: 0, precipProb: 0, weatherCode: 2, weatherLabel: 'Partly cloudy', icon: 'partly-cloudy-day', isDay: true, windSpeed: 14.2, windGusts: 24.5, windDir: 250, windBft: 3, windLabel: 'Gentle breeze', gustBft: 4, lightning: false, lpi: null, cape: 20 },
+        { time: '14:00', isoTime: '2026-10-26T14:00', temp: 7.9, feelsLike: 6.1, precip: 0, precipProb: 10, weatherCode: 3, weatherLabel: 'Overcast', icon: 'overcast', isDay: true, windSpeed: 19.8, windGusts: 31.0, windDir: 260, windBft: 4, windLabel: 'Moderate breeze', gustBft: 5, lightning: false, lpi: null, cape: 40 },
+        { time: '15:00', isoTime: '2026-10-26T15:00', temp: 7.4, feelsLike: 5.3, precip: 0.2, precipProb: 35, weatherCode: 61, weatherLabel: 'Slight rain', icon: 'rain', isDay: true, windSpeed: 22.0, windGusts: 35.0, windDir: 265, windBft: 4, windLabel: 'Moderate breeze', gustBft: 5, lightning: false, lpi: null, cape: 80 },
+        { time: '16:00', isoTime: '2026-10-26T16:00', temp: 6.8, feelsLike: 4.5, precip: 0.6, precipProb: 60, weatherCode: 61, weatherLabel: 'Slight rain', icon: 'rain', isDay: true, windSpeed: 24.5, windGusts: 38.0, windDir: 270, windBft: 4, windLabel: 'Moderate breeze', gustBft: 5, lightning: false, lpi: null, cape: 110 },
+        { time: '17:00', isoTime: '2026-10-26T17:00', temp: 6.1, feelsLike: 3.9, precip: 0, precipProb: 20, weatherCode: 2, weatherLabel: 'Partly cloudy', icon: 'partly-cloudy-night', isDay: false, windSpeed: 16.0, windGusts: 26.0, windDir: 275, windBft: 3, windLabel: 'Gentle breeze', gustBft: 4, lightning: false, lpi: null, cape: 30 },
+        { time: '18:00', isoTime: '2026-10-26T18:00', temp: 5.4, feelsLike: 3.4, precip: 0, precipProb: 5, weatherCode: 1, weatherLabel: 'Mainly clear', icon: 'partly-cloudy-night', isDay: false, windSpeed: 12.0, windGusts: 20.0, windDir: 280, windBft: 3, windLabel: 'Gentle breeze', gustBft: 4, lightning: false, lpi: null, cape: 10 },
+      ],
+    },
+  };
+
+  return { gitlab, litellm, slack, email, calendar, librus, weather };
 }

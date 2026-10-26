@@ -106,7 +106,7 @@ html, body {
   flex: 0 0 auto;
   flex-direction: column;
   align-items: flex-start;
-  gap: 12px;
+  gap: 8px;
   width: max-content;
   max-width: 100%;
 }
@@ -299,6 +299,222 @@ html, body {
 .librus-summary { min-width: 0; max-width: 100%; overflow-wrap: anywhere; white-space: pre-line; font-size: 14.3px; line-height: 1.5; }
 #card-librus #librus-toggle { cursor: pointer; touch-action: manipulation; }
 #card-librus button:focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 2px; }
+
+/* Weather forecast card */
+#card-weather { padding: 10px 14px; }
+#card-weather [hidden] { display: none; }
+.weather-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+.weather-cond-icon {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  display: block;
+}
+.weather-wind-icon {
+  width: 46px;
+  height: 38px;
+  flex-shrink: 0;
+  display: block;
+}
+/* Intentionally styled as static text without button chrome or pointer cursor (#weather-temp tap-to-toggle is a subtle HUD easter egg). */
+.weather-temp {
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1;
+  color: #fff;
+  user-select: none;
+}
+#card-weather[data-temp-mode="feel"] .weather-temp,
+#card-weather[data-temp-mode="feel"] .weather-row-temp {
+  color: #e3ff77;
+}
+.weather-metrics-grid {
+  display: grid;
+  grid-template-columns: auto auto;
+  column-gap: 10px;
+  row-gap: 4px;
+  align-items: center;
+}
+.weather-uv {
+  font-size: 16.5px;
+  font-weight: 700;
+  color: var(--accent-amber);
+}
+.weather-precip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 17.25px;
+  font-weight: 700;
+  color: #38bdf8;
+}
+.weather-mm {
+  font-size: 17.25px;
+  font-weight: 700;
+  color: #38bdf8;
+}
+.weather-mm-unit {
+  font-size: 0.82em;
+  font-weight: 500;
+  opacity: 0.9;
+}
+.weather-drop-icon {
+  width: 21px;
+  height: 21px;
+  flex-shrink: 0;
+  display: block;
+}
+.weather-pressure {
+  font-size: 16.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  cursor: help;
+}
+.weather-pressure[data-trend="rising"] {
+  color: var(--accent-emerald);
+  border-color: rgba(16, 185, 129, 0.25);
+}
+.weather-pressure[data-trend="falling"] {
+  color: var(--accent-amber);
+  border-color: rgba(245, 158, 11, 0.25);
+}
+.weather-pressure-hint {
+  display: none;
+  margin-top: 6px;
+  padding: 6px 9px;
+  border-radius: 8px;
+  background: rgba(0, 240, 255, 0.07);
+  border: 1px solid rgba(0, 240, 255, 0.22);
+  color: #e2e8f0;
+  font-size: 15.75px;
+  line-height: 1.3;
+  max-width: 345px;
+  overflow-wrap: anywhere;
+}
+.hud-container.vertical .weather-pressure-hint { max-width: 100%; }
+#card-weather:has(.weather-pressure:hover, .weather-pressure:focus-visible) .weather-pressure-hint {
+  display: block;
+}
+.weather-status {
+  max-width: 100%;
+  margin-top: 6px;
+  color: var(--accent-amber);
+  font-size: 16.5px;
+  overflow-wrap: anywhere;
+}
+#weather-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-start;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--card-border);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 16.5px;
+  cursor: pointer;
+  touch-action: manipulation;
+  flex-shrink: 0;
+}
+.weather-chevron { display: inline-block; }
+#weather-toggle[aria-expanded="false"] .weather-chevron { transform: rotate(-90deg); }
+#weather-content {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--card-border);
+}
+.weather-modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+.weather-modes button {
+  border: 1px solid var(--card-border);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-muted);
+  font: 700 15px var(--font-mono);
+  padding: 3px 8px;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.weather-modes button[aria-pressed="true"] {
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+  background: rgba(0, 240, 255, 0.08);
+}
+#card-weather button:hover,
+.weather-pressure:hover {
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+}
+#card-weather button:focus-visible,
+.weather-pressure:focus-visible {
+  outline: 2px solid var(--accent-cyan);
+  outline-offset: 2px;
+}
+.weather-forecast {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.weather-row {
+  display: grid;
+  grid-template-columns: 56px 70px 1fr 60px 64px;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 17.25px;
+  line-height: 1.25;
+  padding: 1px 2px;
+}
+.weather-row-time { color: var(--text-muted); font-weight: 600; }
+.weather-row-temp { color: #fff; font-weight: 700; }
+.weather-row-wind-icon { width: 32px; height: 25px; display: block; }
+.weather-row-precip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  color: #38bdf8;
+  font-weight: 600;
+  font-size: 16.5px;
+}
+.weather-row-mm {
+  text-align: right;
+  color: #38bdf8;
+  font-weight: 600;
+  font-size: 16.5px;
+}
+.hud-container.vertical #card-weather { padding: 10px 10px; }
+.hud-container.vertical .weather-summary { gap: 6px; }
+.hud-container.vertical .weather-cond-icon { width: 36px; height: 36px; }
+.hud-container.vertical .weather-wind-icon { width: 42px; height: 34px; }
+.hud-container.vertical .weather-temp { font-size: 28px; }
+.hud-container.vertical .weather-metrics-grid { column-gap: 8px; row-gap: 3px; }
+.hud-container.vertical .weather-uv,
+.hud-container.vertical .weather-precip,
+.hud-container.vertical .weather-mm,
+.hud-container.vertical .weather-pressure { font-size: 15px; }
+.hud-container.vertical .weather-drop-icon { width: 18px; height: 18px; }
+.hud-container.vertical #weather-toggle { width: 28px; height: 28px; font-size: 15px; }
 
 #card-gitlab .metrics-row { margin: 0 0 4px; }
 #card-gitlab .gitlab-mr-feed { margin-top: 0; }

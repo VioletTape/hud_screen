@@ -24,6 +24,7 @@ import { EmailProvider } from './providers/email.js';
 import { CalendarProvider } from './providers/calendar.js';
 import { LibrusProvider } from './providers/librus.js';
 import { TransitProvider } from './providers/transit.js';
+import { WeatherProvider } from './providers/weather.js';
 import { getMockProvidersData } from './providers/mock.js';
 import { getSystemStats } from './system-stats.js';
 import { logError, logSlackPoll } from './error-log.js';
@@ -77,6 +78,7 @@ const slackProvider = new SlackProvider();
 const emailProvider = new EmailProvider();
 const calendarProvider = new CalendarProvider();
 const librusProvider = new LibrusProvider();
+const weatherProvider = new WeatherProvider();
 // Transit is fetched only by an awake widget; it is outside the background poller.
 const transitProvider = new TransitProvider();
 
@@ -140,6 +142,7 @@ async function pollAllProviders(configRefresh = false) {
         slackProvider.fetchData(),
         emailProvider.fetchData(),
         librusProvider.fetchData(),
+        weatherProvider.fetchData(),
         calendarProvider.fetchData().catch(err => {
           console.error('[Calendar] Polling failed:', err);
           logError('Calendar polling', err);
