@@ -65,8 +65,8 @@ export function weatherIconName(code: number, isDay = true): string {
   if (code === 1 || code === 2) return isDay ? 'partly-cloudy-day' : 'partly-cloudy-night';
   if (code === 3) return 'overcast';
   if (code === 45 || code === 48) return 'fog';
-  if (code >= 51 && code <= 57) return 'drizzle';
-  if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return 'rain';
+  if ((code >= 51 && code <= 57) || code === 61 || code === 80) return 'drizzle';
+  if ((code >= 63 && code <= 67) || code === 81 || code === 82) return 'rain';
   if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 'snow';
   if (code >= 95) return 'thunderstorms-rain';
   return isDay ? 'partly-cloudy-day' : 'partly-cloudy-night';
